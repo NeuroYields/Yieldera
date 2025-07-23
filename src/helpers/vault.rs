@@ -7,7 +7,10 @@ use alloy::{
 };
 use color_eyre::eyre::Result;
 
-use crate::types::{Pool, Token, Vaultdetails};
+use crate::{
+    config::HBAR_EVM_ADDRESS,
+    types::{Pool, Token, Vaultdetails},
+};
 
 sol!(
     #[sol(rpc)]
@@ -38,8 +41,8 @@ where
     let decimals = vault.decimals().call().await?;
     let total_supply = vault.totalSupply().call().await?;
     let pool_address = vault.pool().call().await?;
-    let token0 = vault.token0().call().await?;
-    let token1 = vault.token1().call().await?;
+    let token0_address = vault.token0().call().await?;
+    let token1_address = vault.token1().call().await?;
     let fee: f64 = vault.fee().call().await?.into();
     let tick_spacing = vault.tickSpacing().call().await?.as_i32();
     let lower_tick = vault.lowerTick().call().await?.as_i32();
@@ -48,32 +51,38 @@ where
     let total_supply: f64 = format_units(total_supply, decimals)?.parse()?;
 
     // Ftehc token0 and token1 details
-    let token0 = ERC20::new(token0, provider);
-    let token1 = ERC20::new(token1, provider);
+    let token0 = ERC20::new(token0_address, provider);
+    let token1 = ERC20::new(token1_address, provider);
 
+    let token0_address = token0_address.to_string();
     let token0_name = token0.name().call().await?;
     let token0_symbol = token0.symbol().call().await?;
     let token0_decimals = token0.decimals().call().await?;
+    let is_token0_native_wrapper = token0_address.to_lowercase() == HBAR_EVM_ADDRESS.to_lowercase();
 
+    let token1_address = token1_address.to_string();
     let token1_name = token1.name().call().await?;
     let token1_symbol = token1.symbol().call().await?;
     let token1_decimals = token1.decimals().call().await?;
+    let is_token1_native_wrapper = token1_address.to_lowercase() == HBAR_EVM_ADDRESS.to_lowercase();
 
     Ok(Vaultdetails {
         address: vault_address.to_string(),
         pool: Pool {
             address: pool_address.to_string(),
             token0: Token {
-                address: token0.address().to_string(),
+                address: token0_address,
                 name: token0_name,
                 symbol: token0_symbol,
                 decimals: token0_decimals,
+                is_native_wrapper: is_token0_native_wrapper,
             },
             token1: Token {
-                address: token1.address().to_string(),
+                address: token1_address,
                 name: token1_name,
                 symbol: token1_symbol,
                 decimals: token1_decimals,
+                is_native_wrapper: is_token1_native_wrapper,
             },
             fee,
             tick_spacing,

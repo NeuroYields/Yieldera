@@ -28,4 +28,5 @@ pub struct Token {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+    pub is_native_wrapper: bool,
 }
