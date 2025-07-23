@@ -3,4 +3,15 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+# --- Hedera Testnet ---
+[rpc_endpoints]
+hedera_testnet = "https://testnet.hashio.io/api"
+
+[profile.chain_ids]
+hedera_testnet = 296
+
+# optional: default to hedera testnet so you can run plain `forge script`
+[profile.default.fork]
+chain = "hedera_testnet"
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
