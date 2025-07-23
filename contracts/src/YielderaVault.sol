@@ -11,6 +11,7 @@ import "./interfaces/IUniswapV3Pool.sol";
 import "./libraries/UV3Math.sol";
 import "./libraries/AssociateHelper.sol";
 import "./libraries/TransferHelper.sol";
+import "./interfaces/INonfungiblePositionManager.sol";
 
 contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -19,6 +20,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     address constant NULL_ADDRESS = address(0);
     address constant WHBAR_ADDRESS =
         address(0x0000000000000000000000000000000000003aD2);
+    INonfungiblePositionManager constant NFPM =
+        INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
 
     // Immutable state variables
     address public immutable pool;
@@ -135,6 +138,116 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         } else {
             TransferHelper.safeTransfer(token, to, amount);
         }
+    }
+
+    /// @notice Mint a new Liquidity to the pool
+    /// @param to The address to receive the NFT
+    /// @param amount0Max The maximum amount of token0 to deposit
+    /// @param amount1Max The maximum amount of token1 to deposit
+    /// @param tickLower The lower tick of the range
+    /// @param tickUpper The upper tick of the range
+    /// @param deadline The deadline for the transaction
+    function mintLiquidity(
+        address to,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 deadline
+    )
+        external
+        onlyOwner
+        returns (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        )
+    {
+        // Ensure vault has enough balance to execute this mint
+        uint256 balance0;
+        uint256 balance1;
+
+        if (isToken0Native) {
+            balance0 = address(this).balance;
+        } else {
+            balance0 = IERC20(token0).balanceOf(address(this));
+        }
+
+        if (isToken1Native) {
+            balance1 = address(this).balance;
+        } else {
+            balance1 = IERC20(token1).balanceOf(address(this));
+        }
+
+        require(balance0 >= amount0Max, "INSUFF_TOKEN0_BAL");
+        require(balance1 >= amount1Max, "INSUFF_TOKEN1_BAL");
+
+        // Ensure ticks are valid
+        require(
+            tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
+            "TICK_NO_MUL_OF_SPAC"
+        );
+
+        // Do the needed approves
+        if (!isToken0Native) {
+            TransferHelper.safeApprove(token0, address(NFPM), amount0Max);
+        }
+
+        if (!isToken1Native) {
+            TransferHelper.safeApprove(token1, address(NFPM), amount1Max);
+        }
+
+        // Mint the liquidity
+        INonfungiblePositionManager.MintParams
+            memory params = INonfungiblePositionManager.MintParams({
+                token0: token0,
+                token1: token1,
+                fee: fee,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                amount0Desired: amount0Max,
+                amount1Desired: amount1Max,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: to,
+                deadline: deadline
+            });
+
+        // 0.5 hbar fee by default
+        // uint256 valueToSend = 500000000000000000;
+        // 0.5 hbar fee by default with 8 decimals
+        uint256 valueToSend = 50_000_000;
+
+        if (token0 == WHBAR_ADDRESS) {
+            valueToSend += amount0Max;
+            // Check if the balance of the contract is enough to cover the amount of HBAR to be sent
+            require(
+                address(this).balance >= valueToSend,
+                string.concat(
+                    "HBAR_BALANCE_LESS: balance ",
+                    Strings.toString(address(this).balance),
+                    ", required ",
+                    Strings.toString(valueToSend)
+                )
+            );
+        } else if (token1 == WHBAR_ADDRESS) {
+            valueToSend += amount1Max;
+            // Check if the balance of the contract is enough to cover the amount of HBAR to be sent
+            require(
+                address(this).balance >= valueToSend,
+                string.concat(
+                    "HBAR_BALANCE_LESS: balance ",
+                    Strings.toString(address(this).balance),
+                    ", required ",
+                    Strings.toString(valueToSend)
+                )
+            );
+        }
+
+        (tokenId, liquidity, amount0, amount1) = NFPM.mint{value: valueToSend}(
+            params
+        );
     }
 
     /// @notice Returns current price tick
