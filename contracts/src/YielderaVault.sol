@@ -8,8 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/IUniswapV3Pool.sol";
-import "./libraries/AssociateHelper.sol";
 import "./libraries/UV3Math.sol";
+import "./libraries/AssociateHelper.sol";
+import "./libraries/TransferHelper.sol";
 
 contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -45,10 +46,6 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
 
         isToken0Native = token0 == WHBAR_ADDRESS;
         isToken1Native = token1 == WHBAR_ADDRESS;
-
-        // Associate the vault with the 2 tokens in the pool
-        associateToken(token0);
-        associateToken(token1);
     }
 
     /// @notice Associate a hedera token to the vault
@@ -58,6 +55,12 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         require(token == token0 || token == token1, "INVALID_TOKEN");
 
         AssociateHelper.safeAssociateToken(address(this), token);
+    }
+
+    /// @notice Associate the 2 tokens of the vault
+    function associateVaultTokens() external onlyOwner {
+        if (!isToken0Native) associateToken(token0);
+        if (!isToken1Native) associateToken(token1);
     }
 
     /// @notice Deposit tokens into the vault
@@ -83,7 +86,55 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             deposit0
         );
 
+        // Transfer the tokens to the vault
+        if (deposit0 > 0) {
+            if (isToken0Native) {
+                // Ensure msg.value is equal to deposit0
+                require(msg.value == deposit0, "INSUFF_HBAR");
+            } else {
+                TransferHelper.safeTransferFrom(
+                    token0,
+                    msg.sender,
+                    address(this),
+                    deposit0
+                );
+            }
+        }
+
+        if (deposit1 > 0) {
+            if (isToken1Native) {
+                // Ensure msg.value is equal  to deposit1
+                require(msg.value == deposit1, "INSUFF_HBAR");
+            } else {
+                TransferHelper.safeTransferFrom(
+                    token1,
+                    msg.sender,
+                    address(this),
+                    deposit1
+                );
+            }
+        }
+
         shares = 0;
+    }
+
+    /// @notice allow the owner to withdraw tokens from the vault
+    /// @param token The token to withdraw
+    /// @param amount The amount to withdraw
+    /// @param to The address to receive the tokens
+    function withdraw(
+        address token,
+        uint256 amount,
+        address to
+    ) external onlyOwner {
+        require(token == token0 || token == token1, "INVALID_TOKEN");
+        require(to != NULL_ADDRESS, "NULL_TO");
+
+        if (token == WHBAR_ADDRESS) {
+            TransferHelper.safeTransferHBAR(to, amount);
+        } else {
+            TransferHelper.safeTransfer(token, to, amount);
+        }
     }
 
     /// @notice Returns current price tick
