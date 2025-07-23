@@ -20,6 +20,7 @@ pub struct Pool {
     pub token1: Token,
     pub fee: f64,
     pub tick_spacing: i32,
+    pub current_tick: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

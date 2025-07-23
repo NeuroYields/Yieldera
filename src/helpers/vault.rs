@@ -28,6 +28,24 @@ sol! {
 
         function balanceOf(address account) view returns (uint256);
     }
+
+
+    // The `rpc` attribute enables contract interaction via the provider.
+    #[sol(rpc)]
+    contract UniswapV3Pool {
+        function token0() external view returns (address);
+
+        function token1() external view returns (address);
+
+        function fee() external view returns (uint24);
+
+        function liquidity() external view returns (uint128);
+
+
+        function tickSpacing() external view returns (int24);
+
+        function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked);
+    }
 }
 
 pub async fn get_vault_details<P>(provider: &P, vault_address: &str) -> Result<Vaultdetails>
@@ -48,6 +66,7 @@ where
     let tick_spacing = vault.tickSpacing().call().await?.as_i32();
     let lower_tick = vault.lowerTick().call().await?.as_i32();
     let upper_tick = vault.upperTick().call().await?.as_i32();
+    let current_tick = vault.currentTick().call().await?.as_i32();
 
     let total_supply: f64 = format_units(total_supply, decimals)?.parse()?;
 
@@ -87,6 +106,7 @@ where
             },
             fee,
             tick_spacing,
+            current_tick,
         },
         name,
         symbol,
