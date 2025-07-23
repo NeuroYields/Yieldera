@@ -34,5 +34,7 @@ async fn main() -> Result<()> {
 
     println!("{:#?}", vault_details);
 
+    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 4.0, 4000.0).await?;
+
     Ok(())
 }
