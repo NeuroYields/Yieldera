@@ -34,7 +34,11 @@ async fn main() -> Result<()> {
 
     println!("{:#?}", vault_details);
 
-    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 4.0, 4000.0).await?;
+    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 2.0, 1000.0).await?;
+
+    println!("Trying to mint liquidity with fixed upper and lower ticks...");
+    helpers::vault::mint_liquidity(&evm_provider, &vault_details, 17100, 20100, 1.0, 700.0).await?;
+    println!("Minted liquidity with fixed upper and lower ticks.");
 
     Ok(())
 }

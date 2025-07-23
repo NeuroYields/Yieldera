@@ -3,6 +3,7 @@ use std::str::FromStr;
 use alloy::{
     primitives::{
         Address, U256,
+        aliases::I24,
         utils::{format_units, parse_units},
     },
     providers::{Provider, WalletProvider},
@@ -284,6 +285,67 @@ where
 
     println!("Deposit transaction hash: {}", deposit_tx_hash);
     println!("Deposit transaction status: {}", deposit_status);
+
+    if !deposit_status {
+        return Err(color_eyre::eyre::eyre!("Deposit transaction failed"));
+    }
+
+    Ok(())
+}
+
+pub async fn mint_liquidity<P>(
+    provider: &P,
+    vault: &Vaultdetails,
+    lower_tick: i32,
+    upper_tick: i32,
+    amount0_desired: f64,
+    amount1_desired: f64,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let amount0_desired: U256 = parse_units(
+        amount0_desired.to_string().as_str(),
+        vault.pool.token0.decimals,
+    )?
+    .into();
+    let amount1_desired: U256 = parse_units(
+        amount1_desired.to_string().as_str(),
+        vault.pool.token1.decimals,
+    )?
+    .into();
+
+    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+
+    let mint_tx = vault_contract
+        .mintLiquidity(
+            provider.default_signer_address(),
+            amount0_desired,
+            amount1_desired,
+            lower_tick,
+            upper_tick,
+            U256::MAX,
+        )
+        .gas(15_000_000)
+        .send()
+        .await?;
+
+    let mint_receipt = mint_tx.get_receipt().await?;
+
+    let mint_tx_hash = mint_receipt.transaction_hash;
+    let mint_status = mint_receipt.status();
+
+    println!("Mint transaction hash: {}", mint_tx_hash);
+    println!("Mint transaction status: {}", mint_status);
+
+    if !mint_status {
+        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+    }
 
     Ok(())
 }
