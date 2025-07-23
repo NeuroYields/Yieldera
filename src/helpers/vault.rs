@@ -8,7 +8,7 @@ use alloy::{
 use color_eyre::eyre::Result;
 
 use crate::{
-    config::HBAR_EVM_ADDRESS,
+    config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
     types::{Pool, Token, Vaultdetails},
 };
 
@@ -43,7 +43,8 @@ where
     let pool_address = vault.pool().call().await?;
     let token0_address = vault.token0().call().await?;
     let token1_address = vault.token1().call().await?;
-    let fee: f64 = vault.fee().call().await?.into();
+    let mut fee: f64 = vault.fee().call().await?.into();
+    fee = fee / FEE_FACTOR;
     let tick_spacing = vault.tickSpacing().call().await?.as_i32();
     let lower_tick = vault.lowerTick().call().await?.as_i32();
     let upper_tick = vault.upperTick().call().await?.as_i32();
