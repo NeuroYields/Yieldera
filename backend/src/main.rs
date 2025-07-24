@@ -35,16 +35,26 @@ async fn main() -> Result<()> {
 
     println!("{:#?}", vault_details);
 
-    // helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 2.0, 1000.0).await?;
+    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 5.0, 5000.0).await?;
 
     // Start strategy thta will get me the best tick range to put liq on
     let tick_range = strategies::basic::get_best_range(&vault_details).await?;
 
     println!("Tick range: {:#?}", tick_range);
 
-    // println!("Trying to mint liquidity with fixed upper and lower ticks...");
-    // helpers::vault::mint_liquidity(&evm_provider, &vault_details, 17100, 20100, 1.0, 700.0).await?;
-    // println!("Minted liquidity with fixed upper and lower ticks.");
+    // Estimate how much needed of token1 based on the provided amount0
+    let amount0 = 1.0;
+
+    println!("Trying to mint liquidity with Recommended tick range...");
+    helpers::vault::mint_liquidity_from_amount0(
+        &evm_provider,
+        &vault_details,
+        tick_range.lower_tick,
+        tick_range.upper_tick,
+        amount0,
+    )
+    .await?;
+    println!("Minted liquidity with fixed approciate tick range.");
 
     Ok(())
 }

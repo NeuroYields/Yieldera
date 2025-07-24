@@ -1,3 +1,4 @@
+use alloy::primitives::U256;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,8 +21,10 @@ pub struct Pool {
     pub fee: f64,
     pub tick_spacing: i32,
     pub current_tick: i32,
+    pub sqrt_price_x96: U256,
     pub price1: f64,
     pub price0: f64,
+
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
