@@ -12,7 +12,6 @@ pub struct Vaultdetails {
     pub upper_tick: i32,
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pool {
     pub address: String,
@@ -32,4 +31,11 @@ pub struct Token {
     pub symbol: String,
     pub decimals: u8,
     pub is_native_wrapper: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TickRange {
+    pub curent_tick: i32,
+    pub lower_tick: i32,
+    pub upper_tick: i32,
 }
