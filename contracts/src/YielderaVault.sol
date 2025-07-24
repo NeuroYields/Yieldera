@@ -39,7 +39,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     // State variables
     int24 public upperTick;
     int24 public lowerTick;
-    uint256 public tokenId;
+    uint256 public positionTokenId;
 
     // Events
     event Deposit(
@@ -322,7 +322,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         // Update the lower and upper ticks of the vault
         lowerTick = tickLower;
         upperTick = tickUpper;
-        tokenId = tokenId;
+        positionTokenId = tokenId;
 
         emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
     }
@@ -355,7 +355,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         // Update the lower and upper ticks of the vault to 0
         lowerTick = 0;
         upperTick = 0;
-        tokenId = 0;
+        positionTokenId = 0;
 
         emit BurnAllLiquidity(msg.sender, amount0, amount1);
     }
