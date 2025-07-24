@@ -22,6 +22,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     address constant NULL_ADDRESS = address(0);
     address constant WHBAR_ADDRESS =
         address(0x0000000000000000000000000000000000003aD2);
+    address constant SAUCER_NFT_TOKEN =
+        address(0x000000000000000000000000000000000013feE4);
     INonfungiblePositionManager constant NFPM =
         INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
 
@@ -95,6 +97,10 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         uint256 amount1
     );
 
+    event AssociateToken(address indexed token);
+
+    event CustomEvent(address indexed sender, string message);
+
     constructor(
         address _pool
     ) ERC20("Yieldera Vault Hbar", "YHbar") Ownable(msg.sender) {
@@ -113,16 +119,21 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice Associate a hedera token to the vault
     /// @param token The hedera token address to associate
     function associateToken(address token) public onlyOwner {
-        require(token != NULL_ADDRESS, "NULL_TOKEN");
-        require(token == token0 || token == token1, "INVALID_TOKEN");
+        require(
+            token == token0 || token == token1 || token == SAUCER_NFT_TOKEN,
+            "INVALID_TOKEN"
+        );
 
         AssociateHelper.safeAssociateToken(address(this), token);
+
+        emit AssociateToken(token);
     }
 
     /// @notice Associate the 2 tokens of the vault
     function associateVaultTokens() external onlyOwner {
         if (!isToken0Native) associateToken(token0);
         if (!isToken1Native) associateToken(token1);
+        associateToken(SAUCER_NFT_TOKEN);
     }
 
     /// @notice Deposit tokens into the vault
