@@ -206,6 +206,65 @@
     },
     {
         "type": "function",
+        "name": "mintLiquidity",
+        "inputs": [
+            {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "amount0Max",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount1Max",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "tickLower",
+                "type": "int24",
+                "internalType": "int24"
+            },
+            {
+                "name": "tickUpper",
+                "type": "int24",
+                "internalType": "int24"
+            },
+            {
+                "name": "deadline",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "tokenId",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "liquidity",
+                "type": "uint128",
+                "internalType": "uint128"
+            },
+            {
+                "name": "amount0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount1",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "name",
         "inputs": [],
         "outputs": [
