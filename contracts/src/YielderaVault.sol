@@ -12,9 +12,11 @@ import "./libraries/UV3Math.sol";
 import "./libraries/AssociateHelper.sol";
 import "./libraries/TransferHelper.sol";
 import "./interfaces/INonfungiblePositionManager.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     // Constants
     address constant NULL_ADDRESS = address(0);
@@ -35,6 +37,63 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     // State variables
     int24 public upperTick;
     int24 public lowerTick;
+    uint256 public tokenId;
+
+    // Events
+    event Deposit(
+        address indexed sender,
+        address indexed to,
+        uint256 shares,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Withdraw(
+        address indexed sender,
+        address indexed to,
+        uint256 shares,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Rebalance(
+        int24 tick,
+        uint256 totalAmount0,
+        uint256 totalAmount1,
+        uint256 feeAmount0,
+        uint256 feeAmount1,
+        uint256 totalSupply
+    );
+
+    event BurnAllLiquidity(
+        address indexed sender,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event MintLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event IncreaseLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event DecreaseLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
 
     constructor(
         address _pool
@@ -248,6 +307,46 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         (tokenId, liquidity, amount0, amount1) = NFPM.mint{value: valueToSend}(
             params
         );
+
+        // Update the lower and upper ticks of the vault
+        lowerTick = tickLower;
+        upperTick = tickUpper;
+        tokenId = tokenId;
+
+        emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
+    }
+
+    /// @notice Burn all the liquidity from the pool
+    function burnAllLiquidity()
+        external
+        onlyOwner
+        returns (uint256 amount0, uint256 amount1)
+    {
+        require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
+
+        /// Withdraw all liquidity and collect all fees from Uniswap pool
+        (uint128 liquidity, uint256 fees0, uint256 fees1) = _position(
+            lowerTick,
+            upperTick
+        );
+
+        // Burn the liquidity from the pool
+        (amount0, amount1) = _burnLiquidity(
+            lowerTick,
+            upperTick,
+            liquidity,
+            address(this),
+            true,
+            fees0,
+            fees1
+        );
+
+        // Update the lower and upper ticks of the vault to 0
+        lowerTick = 0;
+        upperTick = 0;
+        tokenId = 0;
+
+        emit BurnAllLiquidity(msg.sender, amount0, amount1);
     }
 
     /// @notice Returns current price tick
@@ -261,6 +360,55 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Burn liquidity from the sender and collect tokens owed for the liquidity
+    /// @param tickLower The lower tick of the position for which to burn liquidity
+    /// @param tickUpper The upper tick of the position for which to burn liquidity
+    /// @param liquidity The amount of liquidity to burn
+    /// @param to The address which should receive the fees collected
+    /// @param collectAll If true, collect all tokens owed in the pool, else collect the owed tokens of the burn
+    /// @return amount0 The amount of fees collected in token0
+    /// @return amount1 The amount of fees collected in token1
+    function _burnLiquidity(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity,
+        address to,
+        bool collectAll,
+        uint256 amount0Min,
+        uint256 amount1Min
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        IUniswapV3Pool poolContract = IUniswapV3Pool(pool);
+
+        if (liquidity > 0) {
+            // Burn liquidity
+            (uint256 owed0, uint256 owed1) = poolContract.burn(
+                tickLower,
+                tickUpper,
+                liquidity
+            );
+
+            require(owed0 >= amount0Min && owed1 >= amount1Min, "PSC");
+
+            // Collect amount owed
+            uint128 collect0 = collectAll
+                ? type(uint128).max
+                : owed0.toUint128();
+            uint128 collect1 = collectAll
+                ? type(uint128).max
+                : owed1.toUint128();
+
+            if (collect0 > 0 || collect1 > 0) {
+                (amount0, amount1) = poolContract.collect(
+                    to,
+                    tickLower,
+                    tickUpper,
+                    collect0,
+                    collect1
+                );
+            }
+        }
+    }
 
     /// @notice returns equivalent _tokenOut for _amountIn, _tokenIn using spot price
     /// @param _tokenIn  token the input amount is in
@@ -281,5 +429,28 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
                 _tokenIn,
                 _tokenOut
             );
+    }
+
+    /**
+     @notice Returns information about the liquidity position.
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param liquidity liquidity amount
+     @param tokensOwed0 amount of token0 owed to the owner of the position
+     @param tokensOwed1 amount of token1 owed to the owner of the position
+     */
+    function _position(
+        int24 tickLower,
+        int24 tickUpper
+    )
+        internal
+        view
+        returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
+    {
+        bytes32 positionKey = keccak256(
+            abi.encodePacked(address(this), tickLower, tickUpper)
+        );
+        (liquidity, , , tokensOwed0, tokensOwed1) = IUniswapV3Pool(pool)
+            .positions(positionKey);
     }
 }
