@@ -21,6 +21,8 @@ pub struct Pool {
     pub fee: f64,
     pub tick_spacing: i32,
     pub current_tick: i32,
+    pub price1: f64,
+    pub price0: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

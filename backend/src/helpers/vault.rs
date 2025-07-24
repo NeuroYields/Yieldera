@@ -13,6 +13,7 @@ use color_eyre::eyre::Result;
 
 use crate::{
     config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
+    helpers,
     types::{Pool, Token, Vaultdetails},
 };
 
@@ -94,6 +95,10 @@ where
     let token1_decimals = token1.decimals().call().await?;
     let is_token1_native_wrapper = token1_address.to_lowercase() == HBAR_EVM_ADDRESS.to_lowercase();
 
+    // Calculate the pool price1 and price0 by using the current tick
+    let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
+    let price0 = 1.0 / price1;
+
     Ok(Vaultdetails {
         address: vault_address.to_string(),
         pool: Pool {
@@ -115,6 +120,8 @@ where
             fee,
             tick_spacing,
             current_tick,
+            price1,
+            price0,
         },
         name,
         symbol,
