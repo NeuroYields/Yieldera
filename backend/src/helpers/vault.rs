@@ -400,7 +400,7 @@ where
 
     let mint_tx = vault_contract
         .mintLiquidity(
-            provider.default_signer_address(),
+            vault_address,
             amount0_desired,
             amount1_desired,
             lower_tick,
