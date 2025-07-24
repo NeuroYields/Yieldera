@@ -31,11 +31,12 @@ async fn main() -> Result<()> {
 
     let contract_address = config::YIELDERA_CONTRACT_ADDRESS;
 
-    let vault_details = helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
+    let mut vault_details =
+        helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
 
     println!("{:#?}", vault_details);
 
-    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 5.0, 5000.0).await?;
+    helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 2.0, 1000.0).await?;
 
     // Start strategy thta will get me the best tick range to put liq on
     let tick_range = strategies::basic::get_best_range(&vault_details).await?;
@@ -55,6 +56,10 @@ async fn main() -> Result<()> {
     )
     .await?;
     println!("Minted liquidity with fixed approciate tick range.");
+
+    helpers::vault::update_vault_current_position_data(&evm_provider, &mut vault_details).await?;
+
+    println!("Updated Vault : {:#?}", vault_details);
 
     Ok(())
 }

@@ -11,6 +11,7 @@ pub struct Vaultdetails {
     pub total_supply: f64,
     pub lower_tick: i32,
     pub upper_tick: i32,
+    pub position_token_id: U256,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,7 +25,6 @@ pub struct Pool {
     pub sqrt_price_x96: U256,
     pub price1: f64,
     pub price0: f64,
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

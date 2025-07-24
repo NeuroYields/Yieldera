@@ -106,6 +106,8 @@ where
     let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
     let price0 = 1.0 / price1;
 
+    let position_token_id = vault.positionTokenId().call().await?;
+
     Ok(Vaultdetails {
         address: vault_address.to_string(),
         pool: Pool {
@@ -137,7 +139,27 @@ where
         total_supply,
         lower_tick,
         upper_tick,
+        position_token_id,
     })
+}
+
+pub async fn update_vault_current_position_data<P>(provider: &P, vault: &mut Vaultdetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let lower_tick = vault_contract.lowerTick().call().await?;
+    let upper_tick = vault_contract.upperTick().call().await?;
+    let position_token_id = vault_contract.positionTokenId().call().await?;
+
+    vault.lower_tick = lower_tick.as_i32();
+    vault.upper_tick = upper_tick.as_i32();
+    vault.position_token_id = position_token_id;
+
+    Ok(())
 }
 
 pub async fn deposit_tokens_to_vault<P>(
