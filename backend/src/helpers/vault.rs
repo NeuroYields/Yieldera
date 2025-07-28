@@ -509,7 +509,7 @@ where
     Ok(())
 }
 
-pub async fn get_vault_token_balance<P>(
+pub async fn get_vault_token_balance_for_calculations<P>(
     provider: &P,
     vault: &Vaultdetails,
 ) -> Result<VaultTokenBalances>
@@ -529,7 +529,8 @@ where
     let token1_balance_u256: U256;
 
     if token0.is_native_wrapper {
-        let balance = provider.get_balance(vault_address).await?;
+        // Remove 1 hbar from the balance to cover the fees of minting liquidity
+        let balance = provider.get_balance(vault_address).await? - U256::from(10_u64.pow(18));
 
         token0_balance = format_units(balance, 18)?.parse()?;
         token0_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
@@ -544,7 +545,8 @@ where
     }
 
     if token1.is_native_wrapper {
-        let balance = provider.get_balance(vault_address).await?;
+        // Remove 1 hbar from the balance to cover the fees of minting liquidity
+        let balance = provider.get_balance(vault_address).await? - U256::from(10_u64.pow(18));
 
         token1_balance = format_units(balance, 18)?.parse()?;
         token1_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
