@@ -336,10 +336,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
 
         /// Withdraw all liquidity and collect all fees from Uniswap pool
-        (uint128 liquidity, uint256 fees0, uint256 fees1) = _position(
-            lowerTick,
-            upperTick
-        );
+        (uint128 liquidity, uint256 fees0, uint256 fees1) = _currentPosition();
 
         // Burn the liquidity from the pool
         (amount0, amount1) = _burnLiquidity(
@@ -409,6 +406,14 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
                 ? type(uint128).max
                 : owed1.toUint128();
 
+            if (collect0 == 0) {
+                revert("NO_COLLECT_0");
+            }
+
+            if (collect1 == 0) {
+                revert("NO_COLLECT_1");
+            }
+
             if (collect0 > 0 || collect1 > 0) {
                 (amount0, amount1) = poolContract.collect(
                     to,
@@ -417,6 +422,11 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
                     collect0,
                     collect1
                 );
+
+                if (isToken0Native || isToken1Native) {
+                    // Call Unwrap hbar on non fungible contract to get the balance as hbar
+                    NFPM.unwrapWHBAR(0, address(this));
+                }
             }
         }
     }
@@ -443,25 +453,18 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     }
 
     /**
-     @notice Returns information about the liquidity position.
-     @param tickLower The lower tick of the liquidity position
-     @param tickUpper The upper tick of the liquidity position
-     @param liquidity liquidity amount
-     @param tokensOwed0 amount of token0 owed to the owner of the position
-     @param tokensOwed1 amount of token1 owed to the owner of the position
+     @notice Returns information about the curuent liquidity position.
+     @return liquidity liquidity amount
+     @return tokensOwed0 amount of token0 owed to the owner of the position
+     @return tokensOwed1 amount of token1 owed to the owner of the position
      */
-    function _position(
-        int24 tickLower,
-        int24 tickUpper
-    )
+    function _currentPosition()
         internal
         view
         returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
     {
-        bytes32 positionKey = keccak256(
-            abi.encodePacked(address(this), tickLower, tickUpper)
+        (, , , , , liquidity, , , tokensOwed0, tokensOwed1) = NFPM.positions(
+            positionTokenId
         );
-        (liquidity, , , tokensOwed0, tokensOwed1) = IUniswapV3Pool(pool)
-            .positions(positionKey);
     }
 }

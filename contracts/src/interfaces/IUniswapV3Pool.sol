@@ -40,7 +40,7 @@ interface IUniswapV3Pool {
         returns (
             uint128 liquidity,
             uint256 feeGrowthInside0LastX128,
-            uint256,
+            uint256 feeGrowthInside1LastX128,
             uint128 tokensOwed0,
             uint128 tokensOwed1
         );
