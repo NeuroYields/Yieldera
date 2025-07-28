@@ -98,4 +98,9 @@ interface INonfungiblePositionManager is IPeripheryPayments {
             uint128 tokensOwed0,
             uint128 tokensOwed1
         );
+
+    /// @notice Refunds any hbar balance held by this contract to the `msg.sender`
+    /// @dev Useful for bundling with mint or increase liquidity that uses hbar, or exact output swaps
+    /// that use hbar for the input amount
+    function refundETH() external payable;
 }

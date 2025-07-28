@@ -331,6 +331,9 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             params
         );
 
+        // Refund any extra hbar sent
+        NFPM.refundETH();
+
         // Update the lower and upper ticks of the vault
         lowerTick = tickLower;
         upperTick = tickUpper;
@@ -352,11 +355,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
 
         // Burn the liquidity from the pool
         (amount0, amount1) = _burnLiquidity(
-            lowerTick,
-            upperTick,
             liquidity,
             address(this),
-            true,
             fees0,
             fees1
         );
@@ -377,24 +377,83 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         tick = tick_;
     }
 
+    ///@notice function that GETS teh position of the vault
+    function getCurrentPosition()
+        public
+        view
+        returns (
+            address token0_p,
+            address token1_p,
+            uint24 fee_p,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        (
+            token0_p,
+            token1_p,
+            fee_p,
+            tickLower,
+            tickUpper,
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = NFPM.positions(positionTokenId);
+    }
+
+    ///@notice function that GETS teh position by nft id
+    /// @param tokenSN The serial number of the token that represents the position
+    function getPositionById(
+        uint256 tokenSN
+    )
+        public
+        view
+        returns (
+            address token0_p,
+            address token1_p,
+            uint24 fee_p,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        (
+            token0_p,
+            token1_p,
+            fee_p,
+            tickLower,
+            tickUpper,
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = NFPM.positions(tokenSN);
+    }
+
     /*//////////////////////////////////////////////////////////////
                                INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Burn liquidity from the sender and collect tokens owed for the liquidity
-    /// @param tickLower The lower tick of the position for which to burn liquidity
-    /// @param tickUpper The upper tick of the position for which to burn liquidity
     /// @param liquidity The amount of liquidity to burn
     /// @param to The address which should receive the fees collected
-    /// @param collectAll If true, collect all tokens owed in the pool, else collect the owed tokens of the burn
     /// @return amount0 The amount of fees collected in token0
     /// @return amount1 The amount of fees collected in token1
     function _burnLiquidity(
-        int24 tickLower,
-        int24 tickUpper,
         uint128 liquidity,
         address to,
-        bool collectAll,
         uint256 amount0Min,
         uint256 amount1Min
     ) internal returns (uint256 amount0, uint256 amount1) {
@@ -409,28 +468,21 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             })
         );
 
-        if (collectAll) {
-            // Collect all the fees
-            (amount0, amount1) = NFPM.collect(
-                INonfungiblePositionManager.CollectParams({
-                    tokenSN: positionTokenId,
-                    recipient: to,
-                    amount0Max: type(uint128).max,
-                    amount1Max: type(uint128).max
-                })
-            );
-        }
-
-        // TODO: collect only partial fees
-        // Collect only the fees owed to the position
+        // Collect all the fees
+        (amount0, amount1) = NFPM.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenSN: positionTokenId,
+                recipient: to,
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
 
         // If the token is hbar, unwrap it
         if (isToken0Native && amount0 > 0) {
-            // NFPM.unwrapWHBAR(0, address(this));
             unwrapWhbar(amount0);
         }
         if (isToken1Native && amount1 > 0) {
-            // NFPM.unwrapWHBAR(0, address(this));
             unwrapWhbar(amount1);
         }
     }
