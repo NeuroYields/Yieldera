@@ -386,48 +386,34 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         uint256 amount0Min,
         uint256 amount1Min
     ) internal returns (uint256 amount0, uint256 amount1) {
-        IUniswapV3Pool poolContract = IUniswapV3Pool(pool);
+        // First Decrease the liquidity
+        NFPM.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenSN: positionTokenId,
+                liquidity: liquidity,
+                amount0Min: amount0Min,
+                amount1Min: amount1Min,
+                deadline: type(uint256).max
+            })
+        );
 
-        if (liquidity > 0) {
-            // Burn liquidity
-            (uint256 owed0, uint256 owed1) = poolContract.burn(
-                tickLower,
-                tickUpper,
-                liquidity
+        if (collectAll) {
+            // Collect all the fees
+            (amount0, amount1) = NFPM.collect(
+                INonfungiblePositionManager.CollectParams({
+                    tokenSN: positionTokenId,
+                    recipient: to,
+                    amount0Max: type(uint128).max,
+                    amount1Max: type(uint128).max
+                })
             );
+        }
 
-            require(owed0 >= amount0Min && owed1 >= amount1Min, "PSC");
-
-            // Collect amount owed
-            uint128 collect0 = collectAll
-                ? type(uint128).max
-                : owed0.toUint128();
-            uint128 collect1 = collectAll
-                ? type(uint128).max
-                : owed1.toUint128();
-
-            if (collect0 == 0) {
-                revert("NO_COLLECT_0");
-            }
-
-            if (collect1 == 0) {
-                revert("NO_COLLECT_1");
-            }
-
-            if (collect0 > 0 || collect1 > 0) {
-                (amount0, amount1) = poolContract.collect(
-                    to,
-                    tickLower,
-                    tickUpper,
-                    collect0,
-                    collect1
-                );
-
-                if (isToken0Native || isToken1Native) {
-                    // Call Unwrap hbar on non fungible contract to get the balance as hbar
-                    NFPM.unwrapWHBAR(0, address(this));
-                }
-            }
+        // TODO: collect only partial fees
+        // Collect only the fees owed to the position
+        // If the token is hbar, unwrap it
+        if (isToken0Native || isToken1Native) {
+            NFPM.unwrapWHBAR(0, address(this));
         }
     }
 
