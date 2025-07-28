@@ -13,6 +13,7 @@ import "./libraries/AssociateHelper.sol";
 import "./libraries/TransferHelper.sol";
 import "./interfaces/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "./interfaces/IWhbarHelper.sol";
 
 contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -22,6 +23,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     address constant NULL_ADDRESS = address(0);
     address constant WHBAR_ADDRESS =
         address(0x0000000000000000000000000000000000003aD2);
+    address constant WHBAR_HELPER_ADDRESS =
+        address(0x000000000000000000000000000000000050a8a7);
     address constant SAUCER_NFT_TOKEN =
         address(0x000000000000000000000000000000000013feE4);
     INonfungiblePositionManager constant NFPM =
@@ -134,6 +137,15 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         associateToken(token0);
         associateToken(token1);
         associateToken(SAUCER_NFT_TOKEN);
+    }
+
+    /// @notice Unwraps the contract's WHBAR balance and sends it to recipient as hbar.
+    /// @dev The amountMinimum parameter prevents malicious contracts from stealing WHBAR from users.
+    function unwrapWhbar(uint256 amount) public onlyOwner {
+        // Safe approve the contract to spend the whbar
+        TransferHelper.safeApprove(WHBAR_ADDRESS, WHBAR_HELPER_ADDRESS, amount);
+        // Unwrap vault whbar
+        IWhbarHelper(WHBAR_HELPER_ADDRESS).unwrapWhbar(amount);
     }
 
     /// @notice Deposit tokens into the vault
@@ -336,7 +348,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
 
         /// Withdraw all liquidity and collect all fees from Uniswap pool
-        (uint128 liquidity, uint256 fees0, uint256 fees1) = _currentPosition();
+        (uint128 liquidity, uint256 fees0, uint256 fees1) = currentPosition();
 
         // Burn the liquidity from the pool
         (amount0, amount1) = _burnLiquidity(
@@ -411,9 +423,15 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
 
         // TODO: collect only partial fees
         // Collect only the fees owed to the position
+
         // If the token is hbar, unwrap it
-        if (isToken0Native || isToken1Native) {
-            NFPM.unwrapWHBAR(0, address(this));
+        if (isToken0Native && amount0 > 0) {
+            // NFPM.unwrapWHBAR(0, address(this));
+            unwrapWhbar(amount0);
+        }
+        if (isToken1Native && amount1 > 0) {
+            // NFPM.unwrapWHBAR(0, address(this));
+            unwrapWhbar(amount1);
         }
     }
 
@@ -444,8 +462,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
      @return tokensOwed0 amount of token0 owed to the owner of the position
      @return tokensOwed1 amount of token1 owed to the owner of the position
      */
-    function _currentPosition()
-        internal
+    function currentPosition()
+        public
         view
         returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
     {
@@ -453,4 +471,9 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             positionTokenId
         );
     }
+
+    ///@notice function that makes the contract accespst native transfers
+    receive() external payable {}
+
+    fallback() external payable {}
 }
