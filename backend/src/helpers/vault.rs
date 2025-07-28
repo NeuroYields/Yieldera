@@ -3,6 +3,7 @@ use std::str::FromStr;
 use alloy::{
     primitives::{
         Address, U256,
+        aliases::I24,
         utils::{format_units, parse_units},
     },
     providers::{Provider, WalletProvider},
@@ -12,6 +13,7 @@ use color_eyre::eyre::Result;
 
 use crate::{
     config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
+    helpers,
     types::{Pool, Token, Vaultdetails},
 };
 
@@ -73,7 +75,14 @@ where
     let tick_spacing = vault.tickSpacing().call().await?.as_i32();
     let lower_tick = vault.lowerTick().call().await?.as_i32();
     let upper_tick = vault.upperTick().call().await?.as_i32();
-    let current_tick = vault.currentTick().call().await?.as_i32();
+
+    // Ftehcing sqrt and tick of the pool
+    let slot0 = UniswapV3Pool::new(pool_address, provider)
+        .slot0()
+        .call()
+        .await?;
+    let sqrt_price_x96 = U256::from_str(slot0.sqrtPriceX96.to_string().as_str())?;
+    let current_tick = slot0.tick.as_i32();
 
     let total_supply: f64 = format_units(total_supply, decimals)?.parse()?;
 
@@ -92,6 +101,10 @@ where
     let token1_symbol = token1.symbol().call().await?;
     let token1_decimals = token1.decimals().call().await?;
     let is_token1_native_wrapper = token1_address.to_lowercase() == HBAR_EVM_ADDRESS.to_lowercase();
+
+    // Calculate the pool price1 and price0 by using the current tick
+    let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
+    let price0 = 1.0 / price1;
 
     Ok(Vaultdetails {
         address: vault_address.to_string(),
@@ -114,6 +127,9 @@ where
             fee,
             tick_spacing,
             current_tick,
+            sqrt_price_x96,
+            price1,
+            price0,
         },
         name,
         symbol,
@@ -284,6 +300,128 @@ where
 
     println!("Deposit transaction hash: {}", deposit_tx_hash);
     println!("Deposit transaction status: {}", deposit_status);
+
+    if !deposit_status {
+        return Err(color_eyre::eyre::eyre!("Deposit transaction failed"));
+    }
+
+    Ok(())
+}
+
+pub async fn mint_liquidity<P>(
+    provider: &P,
+    vault: &Vaultdetails,
+    lower_tick: i32,
+    upper_tick: i32,
+    amount0_desired: f64,
+    amount1_desired: f64,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let amount0_desired: U256 = parse_units(
+        amount0_desired.to_string().as_str(),
+        vault.pool.token0.decimals,
+    )?
+    .into();
+    let amount1_desired: U256 = parse_units(
+        amount1_desired.to_string().as_str(),
+        vault.pool.token1.decimals,
+    )?
+    .into();
+
+    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+
+    let mint_tx = vault_contract
+        .mintLiquidity(
+            provider.default_signer_address(),
+            amount0_desired,
+            amount1_desired,
+            lower_tick,
+            upper_tick,
+            U256::MAX,
+        )
+        .gas(15_000_000)
+        .send()
+        .await?;
+
+    let mint_receipt = mint_tx.get_receipt().await?;
+
+    let mint_tx_hash = mint_receipt.transaction_hash;
+    let mint_status = mint_receipt.status();
+
+    println!("Mint transaction hash: {}", mint_tx_hash);
+    println!("Mint transaction status: {}", mint_status);
+
+    if !mint_status {
+        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+    }
+
+    Ok(())
+}
+
+pub async fn mint_liquidity_from_amount0<P>(
+    provider: &P,
+    vault: &Vaultdetails,
+    lower_tick: i32,
+    upper_tick: i32,
+    amount0_desired: f64,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let amount0_desired: U256 = parse_units(
+        amount0_desired.to_string().as_str(),
+        vault.pool.token0.decimals,
+    )?
+    .into();
+
+    let amount1_desired = helpers::math::estimate_amount1_given_amount0(
+        vault.pool.sqrt_price_x96,
+        lower_tick,
+        upper_tick,
+        amount0_desired,
+    )?;
+
+    println!("Amount0 desired: {:?}", amount0_desired);
+    println!("Amount1 desired: {:?}", amount1_desired);
+
+    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+
+    let mint_tx = vault_contract
+        .mintLiquidity(
+            provider.default_signer_address(),
+            amount0_desired,
+            amount1_desired,
+            lower_tick,
+            upper_tick,
+            U256::MAX,
+        )
+        .gas(15_000_000)
+        .send()
+        .await?;
+
+    let mint_receipt = mint_tx.get_receipt().await?;
+
+    let mint_tx_hash = mint_receipt.transaction_hash;
+    let mint_status = mint_receipt.status();
+
+    println!("Mint transaction hash: {}", mint_tx_hash);
+    println!("Mint transaction status: {}", mint_status);
+
+    if !mint_status {
+        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+    }
 
     Ok(())
 }
