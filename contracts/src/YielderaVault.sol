@@ -12,14 +12,21 @@ import "./libraries/UV3Math.sol";
 import "./libraries/AssociateHelper.sol";
 import "./libraries/TransferHelper.sol";
 import "./interfaces/INonfungiblePositionManager.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "./interfaces/IWhbarHelper.sol";
 
 contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     // Constants
     address constant NULL_ADDRESS = address(0);
     address constant WHBAR_ADDRESS =
         address(0x0000000000000000000000000000000000003aD2);
+    address constant WHBAR_HELPER_ADDRESS =
+        address(0x000000000000000000000000000000000050a8a7);
+    address constant SAUCER_NFT_TOKEN =
+        address(0x000000000000000000000000000000000013feE4);
     INonfungiblePositionManager constant NFPM =
         INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
 
@@ -35,6 +42,67 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     // State variables
     int24 public upperTick;
     int24 public lowerTick;
+    uint256 public positionTokenId;
+
+    // Events
+    event Deposit(
+        address indexed sender,
+        address indexed to,
+        uint256 shares,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Withdraw(
+        address indexed sender,
+        address indexed to,
+        uint256 shares,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Rebalance(
+        int24 tick,
+        uint256 totalAmount0,
+        uint256 totalAmount1,
+        uint256 feeAmount0,
+        uint256 feeAmount1,
+        uint256 totalSupply
+    );
+
+    event BurnAllLiquidity(
+        address indexed sender,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event MintLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event IncreaseLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event DecreaseLiquidity(
+        address indexed sender,
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event AssociateToken(address indexed token);
+
+    event CustomEvent(address indexed sender, string message);
 
     constructor(
         address _pool
@@ -54,16 +122,30 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
     /// @notice Associate a hedera token to the vault
     /// @param token The hedera token address to associate
     function associateToken(address token) public onlyOwner {
-        require(token != NULL_ADDRESS, "NULL_TOKEN");
-        require(token == token0 || token == token1, "INVALID_TOKEN");
+        require(
+            token == token0 || token == token1 || token == SAUCER_NFT_TOKEN,
+            "INVALID_TOKEN"
+        );
 
         AssociateHelper.safeAssociateToken(address(this), token);
+
+        emit AssociateToken(token);
     }
 
     /// @notice Associate the 2 tokens of the vault
     function associateVaultTokens() external onlyOwner {
-        if (!isToken0Native) associateToken(token0);
-        if (!isToken1Native) associateToken(token1);
+        associateToken(token0);
+        associateToken(token1);
+        associateToken(SAUCER_NFT_TOKEN);
+    }
+
+    /// @notice Unwraps the contract's WHBAR balance and sends it to recipient as hbar.
+    /// @dev The amountMinimum parameter prevents malicious contracts from stealing WHBAR from users.
+    function unwrapWhbar(uint256 amount) public onlyOwner {
+        // Safe approve the contract to spend the whbar
+        TransferHelper.safeApprove(WHBAR_ADDRESS, WHBAR_HELPER_ADDRESS, amount);
+        // Unwrap vault whbar
+        IWhbarHelper(WHBAR_HELPER_ADDRESS).unwrapWhbar(amount);
     }
 
     /// @notice Deposit tokens into the vault
@@ -248,6 +330,43 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         (tokenId, liquidity, amount0, amount1) = NFPM.mint{value: valueToSend}(
             params
         );
+
+        // Refund any extra hbar sent
+        NFPM.refundETH();
+
+        // Update the lower and upper ticks of the vault
+        lowerTick = tickLower;
+        upperTick = tickUpper;
+        positionTokenId = tokenId;
+
+        emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
+    }
+
+    /// @notice Burn all the liquidity from the pool
+    function burnAllLiquidity()
+        external
+        onlyOwner
+        returns (uint256 amount0, uint256 amount1)
+    {
+        require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
+
+        /// Withdraw all liquidity and collect all fees from Uniswap pool
+        (uint128 liquidity, uint256 fees0, uint256 fees1) = currentPosition();
+
+        // Burn the liquidity from the pool
+        (amount0, amount1) = _burnLiquidity(
+            liquidity,
+            address(this),
+            fees0,
+            fees1
+        );
+
+        // Update the lower and upper ticks of the vault to 0
+        lowerTick = 0;
+        upperTick = 0;
+        positionTokenId = 0;
+
+        emit BurnAllLiquidity(msg.sender, amount0, amount1);
     }
 
     /// @notice Returns current price tick
@@ -258,9 +377,115 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         tick = tick_;
     }
 
+    ///@notice function that GETS teh position of the vault
+    function getCurrentPosition()
+        public
+        view
+        returns (
+            address token0_p,
+            address token1_p,
+            uint24 fee_p,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        (
+            token0_p,
+            token1_p,
+            fee_p,
+            tickLower,
+            tickUpper,
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = NFPM.positions(positionTokenId);
+    }
+
+    ///@notice function that GETS teh position by nft id
+    /// @param tokenSN The serial number of the token that represents the position
+    function getPositionById(
+        uint256 tokenSN
+    )
+        public
+        view
+        returns (
+            address token0_p,
+            address token1_p,
+            uint24 fee_p,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        (
+            token0_p,
+            token1_p,
+            fee_p,
+            tickLower,
+            tickUpper,
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = NFPM.positions(tokenSN);
+    }
+
     /*//////////////////////////////////////////////////////////////
                                INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Burn liquidity from the sender and collect tokens owed for the liquidity
+    /// @param liquidity The amount of liquidity to burn
+    /// @param to The address which should receive the fees collected
+    /// @return amount0 The amount of fees collected in token0
+    /// @return amount1 The amount of fees collected in token1
+    function _burnLiquidity(
+        uint128 liquidity,
+        address to,
+        uint256 amount0Min,
+        uint256 amount1Min
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        // First Decrease the liquidity
+        NFPM.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenSN: positionTokenId,
+                liquidity: liquidity,
+                amount0Min: amount0Min,
+                amount1Min: amount1Min,
+                deadline: type(uint256).max
+            })
+        );
+
+        // Collect all the fees
+        (amount0, amount1) = NFPM.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenSN: positionTokenId,
+                recipient: to,
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+
+        // If the token is hbar, unwrap it
+        if (isToken0Native && amount0 > 0) {
+            unwrapWhbar(amount0);
+        }
+        if (isToken1Native && amount1 > 0) {
+            unwrapWhbar(amount1);
+        }
+    }
 
     /// @notice returns equivalent _tokenOut for _amountIn, _tokenIn using spot price
     /// @param _tokenIn  token the input amount is in
@@ -282,4 +507,25 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
                 _tokenOut
             );
     }
+
+    /**
+     @notice Returns information about the curuent liquidity position.
+     @return liquidity liquidity amount
+     @return tokensOwed0 amount of token0 owed to the owner of the position
+     @return tokensOwed1 amount of token1 owed to the owner of the position
+     */
+    function currentPosition()
+        public
+        view
+        returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
+    {
+        (, , , , , liquidity, , , tokensOwed0, tokensOwed1) = NFPM.positions(
+            positionTokenId
+        );
+    }
+
+    ///@notice function that makes the contract accespst native transfers
+    receive() external payable {}
+
+    fallback() external payable {}
 }

@@ -106,6 +106,8 @@ where
     let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
     let price0 = 1.0 / price1;
 
+    let position_token_id = vault.positionTokenId().call().await?;
+
     Ok(Vaultdetails {
         address: vault_address.to_string(),
         pool: Pool {
@@ -137,7 +139,30 @@ where
         total_supply,
         lower_tick,
         upper_tick,
+        position_token_id,
     })
+}
+
+pub async fn update_vault_current_position_data<P>(
+    provider: &P,
+    vault: &mut Vaultdetails,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let lower_tick = vault_contract.lowerTick().call().await?;
+    let upper_tick = vault_contract.upperTick().call().await?;
+    let position_token_id = vault_contract.positionTokenId().call().await?;
+
+    vault.lower_tick = lower_tick.as_i32();
+    vault.upper_tick = upper_tick.as_i32();
+    vault.position_token_id = position_token_id;
+
+    Ok(())
 }
 
 pub async fn deposit_tokens_to_vault<P>(
@@ -400,7 +425,7 @@ where
 
     let mint_tx = vault_contract
         .mintLiquidity(
-            provider.default_signer_address(),
+            vault_address,
             amount0_desired,
             amount1_desired,
             lower_tick,
@@ -420,7 +445,65 @@ where
     println!("Mint transaction status: {}", mint_status);
 
     if !mint_status {
-        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+        return Err(color_eyre::eyre::eyre!(
+            "Mint transaction failed. Error: {:?}",
+            mint_receipt
+        ));
+    }
+
+    Ok(())
+}
+
+pub async fn burn_all_liquidity<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    if vault.position_token_id == U256::ZERO {
+        println!("Skiiping burning liquidity as there is no liquidity to burn");
+        return Ok(());
+    }
+
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let burn_tx = vault_contract.burnAllLiquidity().send().await?;
+
+    let burn_receipt = burn_tx.get_receipt().await?;
+
+    let burn_tx_hash = burn_receipt.transaction_hash;
+    let burn_status = burn_receipt.status();
+
+    println!("Burn transaction hash: {}", burn_tx_hash);
+    println!("Burn transaction status: {}", burn_status);
+
+    if !burn_status {
+        return Err(color_eyre::eyre::eyre!("Burn transaction failed"));
+    }
+
+    Ok(())
+}
+
+pub async fn associate_vault_tokens<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let associate_tx = vault_contract.associateVaultTokens().send().await?;
+
+    let associate_receipt = associate_tx.get_receipt().await?;
+
+    let associate_tx_hash = associate_receipt.transaction_hash;
+    let associate_status = associate_receipt.status();
+
+    println!("Associate transaction hash: {}", associate_tx_hash);
+    println!("Associate transaction status: {}", associate_status);
+
+    if !associate_status {
+        return Err(color_eyre::eyre::eyre!("Associate transaction failed"));
     }
 
     Ok(())

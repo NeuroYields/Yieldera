@@ -1,4 +1,4 @@
-use alloy::primitives::U256;
+use alloy::primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -11,6 +11,7 @@ pub struct Vaultdetails {
     pub total_supply: f64,
     pub lower_tick: i32,
     pub upper_tick: i32,
+    pub position_token_id: U256,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,7 +25,6 @@ pub struct Pool {
     pub sqrt_price_x96: U256,
     pub price1: f64,
     pub price0: f64,
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -41,4 +41,19 @@ pub struct TickRange {
     pub curent_tick: i32,
     pub lower_tick: i32,
     pub upper_tick: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Position {
+    pub id: U256,
+    pub token0: Address,
+    pub token1: Address,
+    pub fee: u32,
+    pub tick_lower: i32,
+    pub tick_upper: i32,
+    pub liquidity: u128,
+    pub fee_growth_inside0_last_x128: U256,
+    pub fee_growth_inside1_last_x128: U256,
+    pub tokens_owed0: u128,
+    pub tokens_owed1: u128,
 }
