@@ -131,8 +131,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
 
     /// @notice Associate the 2 tokens of the vault
     function associateVaultTokens() external onlyOwner {
-        if (!isToken0Native) associateToken(token0);
-        if (!isToken1Native) associateToken(token1);
+        associateToken(token0);
+        associateToken(token1);
         associateToken(SAUCER_NFT_TOKEN);
     }
 
