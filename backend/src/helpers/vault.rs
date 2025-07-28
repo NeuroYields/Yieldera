@@ -143,7 +143,10 @@ where
     })
 }
 
-pub async fn update_vault_current_position_data<P>(provider: &P, vault: &mut Vaultdetails) -> Result<()>
+pub async fn update_vault_current_position_data<P>(
+    provider: &P,
+    vault: &mut Vaultdetails,
+) -> Result<()>
 where
     P: Provider + WalletProvider,
 {
@@ -443,6 +446,66 @@ where
 
     if !mint_status {
         return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+    }
+
+    Ok(())
+}
+
+pub async fn burn_all_liquidity<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    if vault.position_token_id == U256::ZERO {
+        println!("Skiiping burning liquidity as there is no liquidity to burn");
+        return Ok(());
+    }
+
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let burn_tx = vault_contract.burnAllLiquidity().send().await?;
+
+    let burn_receipt = burn_tx.get_receipt().await?;
+
+    let burn_tx_hash = burn_receipt.transaction_hash;
+    let burn_status = burn_receipt.status();
+
+    println!("Burn transaction hash: {}", burn_tx_hash);
+    println!("Burn transaction status: {}", burn_status);
+
+    if !burn_status {
+        return Err(color_eyre::eyre::eyre!("Burn transaction failed"));
+    }
+
+    Ok(())
+}
+
+// pub async fn unwrap_vault_whbar<P>(provider: &P, vault: &Vaultdetails) -> Result<()> {
+
+//     Ok(())
+// }
+
+pub async fn associate_vault_tokens<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let associate_tx = vault_contract.associateVaultTokens().send().await?;
+
+    let associate_receipt = associate_tx.get_receipt().await?;
+
+    let associate_tx_hash = associate_receipt.transaction_hash;
+    let associate_status = associate_receipt.status();
+
+    println!("Associate transaction hash: {}", associate_tx_hash);
+    println!("Associate transaction status: {}", associate_status);
+
+    if !associate_status {
+        return Err(color_eyre::eyre::eyre!("Associate transaction failed"));
     }
 
     Ok(())
