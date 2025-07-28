@@ -445,7 +445,10 @@ where
     println!("Mint transaction status: {}", mint_status);
 
     if !mint_status {
-        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
+        return Err(color_eyre::eyre::eyre!(
+            "Mint transaction failed. Error: {:?}",
+            mint_receipt
+        ));
     }
 
     Ok(())
@@ -480,11 +483,6 @@ where
 
     Ok(())
 }
-
-// pub async fn unwrap_vault_whbar<P>(provider: &P, vault: &Vaultdetails) -> Result<()> {
-
-//     Ok(())
-// }
 
 pub async fn associate_vault_tokens<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
 where
