@@ -57,3 +57,11 @@ pub struct Position {
     pub tokens_owed0: u128,
     pub tokens_owed1: u128,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VaultTokenBalances {
+    pub token0_balance: f64,
+    pub token1_balance: f64,
+    pub token0_balance_u256: U256,
+    pub token1_balance_u256: U256,
+}

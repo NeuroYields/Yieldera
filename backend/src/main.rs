@@ -17,6 +17,8 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod test {
+    use alloy::primitives::utils::format_units;
+
     use super::*;
 
     #[tokio::test]
@@ -87,6 +89,155 @@ mod test {
             .await?;
 
         println!("Updated Vault after burn liquidity : {:#?}", vault_details);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rebalance() -> Result<()> {
+        // load env vars
+        dotenvy::dotenv().ok();
+
+        let private_key = std::env::var("PRIVATE_KEY")?;
+
+        let evm_signer = PrivateKeySigner::from_str(private_key.as_str())?;
+
+        // Init provider with the specified rpc url in config
+        let evm_provider = ProviderBuilder::new()
+            .with_chain_id(CHAIN_ID)
+            .wallet(evm_signer)
+            .connect(RPC_URL)
+            .await?;
+
+        let contract_address = config::YIELDERA_CONTRACT_ADDRESS;
+
+        let mut vault_details =
+            helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
+
+        println!("{:#?}", vault_details);
+
+        if IS_NEW_CONTRACT {
+            println!("Associating vault tokens...");
+            helpers::vault::associate_vault_tokens(&evm_provider, &mut vault_details).await?;
+            println!("Associated vault tokens.");
+        }
+
+        // Deposit only native hbar tokens
+        // helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 4.0, 0.0).await?;
+
+        // Start strategy thta will get me the best tick range to put liq on
+        let tick_range = strategies::basic::get_best_range(&vault_details).await?;
+
+        println!("Tick range: {:#?}", tick_range);
+
+        let lower_tick = tick_range.lower_tick;
+        let upper_tick = tick_range.upper_tick;
+        let current_tick = tick_range.curent_tick;
+
+        // Get the ratio fo miniting liquidity
+
+        let lower_tick_sqrt_price =
+            helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(lower_tick)?;
+        let upper_tick_sqrt_price =
+            helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(upper_tick)?;
+        let current_tick_sqrt_price =
+            helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(current_tick)?;
+
+        println!("Lower tick sqrt price: {:#?}", lower_tick_sqrt_price);
+        println!("Upper tick sqrt price: {:#?}", upper_tick_sqrt_price);
+        println!("Current tick sqrt price: {:#?}", current_tick_sqrt_price);
+
+        let liquidity = 1e18;
+
+        // Simulate ideal token ratio using L = 1
+        let (ideal_amount0_u256, ideal_amount1_u256) =
+            helpers::math::uniswap_v3::liquidity_math::get_amounts_for_liquidity(
+                current_tick_sqrt_price,
+                lower_tick_sqrt_price,
+                upper_tick_sqrt_price,
+                u128::from_str(liquidity.to_string().as_str())?,
+            )?;
+
+        // Format units to f64 by each token decimals
+        let ideal_amount0: f64 =
+            format_units(ideal_amount0_u256, vault_details.pool.token0.decimals)?.parse()?;
+        let ideal_amount1: f64 =
+            format_units(ideal_amount1_u256, vault_details.pool.token1.decimals)?.parse()?;
+
+        println!("Ideal amount0: {:#?}", ideal_amount0);
+        println!("Ideal amount1: {:#?}", ideal_amount1);
+
+        let ratio0 = ideal_amount0 / ideal_amount1;
+        let ratio1 = ideal_amount1 / ideal_amount0;
+
+        println!("Ideal ratio0: {:#?}", ratio0);
+        println!("Ideal ratio1: {:#?}", ratio1);
+
+        // Check current ratio of the pool
+        let vault_token_balances =
+            helpers::vault::get_vault_token_balance(&evm_provider, &vault_details).await?;
+
+        let balance_token0 = vault_token_balances.token0_balance;
+        let balance_token1 = vault_token_balances.token1_balance;
+        let balance_token0_u256 = vault_token_balances.token0_balance_u256;
+        let balance_token1_u256 = vault_token_balances.token1_balance_u256;
+
+        println!("Balance token0: {:#?}", balance_token0);
+        println!("Balance token1: {:#?}", balance_token1);
+
+        let current_ratio0 = balance_token0 / balance_token1;
+        let current_ratio1 = balance_token1 / balance_token0;
+
+        println!("Current ratio0: {:#?}", current_ratio0);
+        println!("Current ratio1: {:#?}", current_ratio1);
+
+        let balance1_token0_equivalent = balance_token1 * vault_details.pool.price0;
+
+        println!(
+            "Balance1_token0_equivalent: {:#?}",
+            balance1_token0_equivalent
+        );
+
+        let is_balance0_larger = balance_token0 > balance1_token0_equivalent;
+
+        println!("Is balance0 larger: {:#?}", is_balance0_larger);
+
+        let liquidity = if is_balance0_larger {
+            helpers::math::uniswap_v3::liquidity_math::get_liquidity_for_amount0(
+                lower_tick_sqrt_price,
+                upper_tick_sqrt_price,
+                vault_token_balances.token0_balance_u256,
+            )?
+        } else {
+            helpers::math::uniswap_v3::liquidity_math::get_liquidity_for_amount1(
+                lower_tick_sqrt_price,
+                upper_tick_sqrt_price,
+                vault_token_balances.token1_balance_u256,
+            )?
+        };
+
+        println!("Liquidity: {:#?}", liquidity);
+
+        let (amount0, amount1) =
+            helpers::math::uniswap_v3::liquidity_math::get_amounts_for_liquidity(
+                current_tick_sqrt_price,
+                lower_tick_sqrt_price,
+                upper_tick_sqrt_price,
+                liquidity,
+            )?;
+
+        println!("Amount0: {:#?}", amount0);
+        println!("Token0 U256 Balance: {:#?}", balance_token0_u256);
+        println!("Amount1: {:#?}", amount1);
+        println!("Token1 U256 Balance: {:#?}", balance_token1_u256);
+
+        let desired_amount0: f64 =
+            format_units(amount0, vault_details.pool.token0.decimals)?.parse()?;
+        let desired_amount1: f64 =
+            format_units(amount1, vault_details.pool.token1.decimals)?.parse()?;
+
+        println!("Desired Amount0: {:#?}", desired_amount0);
+        println!("Desired Amount1: {:#?}", desired_amount1);
+
         Ok(())
     }
 }

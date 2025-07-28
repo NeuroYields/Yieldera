@@ -14,7 +14,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
     helpers,
-    types::{Pool, Token, Vaultdetails},
+    types::{Pool, Token, VaultTokenBalances, Vaultdetails},
 };
 
 sol!(
@@ -507,4 +507,61 @@ where
     }
 
     Ok(())
+}
+
+pub async fn get_vault_token_balance<P>(
+    provider: &P,
+    vault: &Vaultdetails,
+) -> Result<VaultTokenBalances>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let token0 = &vault.pool.token0;
+    let token1 = &vault.pool.token1;
+
+    let token0_balance: f64;
+    let token1_balance: f64;
+    let token0_balance_u256: U256;
+    let token1_balance_u256: U256;
+
+    if token0.is_native_wrapper {
+        let balance = provider.get_balance(vault_address).await?;
+
+        token0_balance = format_units(balance, 18)?.parse()?;
+        token0_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
+    } else {
+        let balance = ERC20::new(Address::from_str(token0.address.as_str())?, provider)
+            .balanceOf(vault_address)
+            .call()
+            .await?;
+
+        token0_balance = format_units(balance, token0.decimals)?.parse()?;
+        token0_balance_u256 = balance;
+    }
+
+    if token1.is_native_wrapper {
+        let balance = provider.get_balance(vault_address).await?;
+
+        token1_balance = format_units(balance, 18)?.parse()?;
+        token1_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
+    } else {
+        let balance = ERC20::new(Address::from_str(token1.address.as_str())?, provider)
+            .balanceOf(vault_address)
+            .call()
+            .await?;
+
+        token1_balance = format_units(balance, token1.decimals)?.parse()?;
+        token1_balance_u256 = balance;
+    }
+
+    Ok(VaultTokenBalances {
+        token0_balance,
+        token1_balance,
+        token0_balance_u256,
+        token1_balance_u256,
+    })
 }
