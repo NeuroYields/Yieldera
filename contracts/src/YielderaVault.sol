@@ -55,6 +55,7 @@ contract YielderaVault is
     // State variables
     int24 public upperTick;
     int24 public lowerTick;
+    bool public isActive;
 
     // Events
     event Deposit(
@@ -261,9 +262,15 @@ contract YielderaVault is
         uint256 desiredSwapOutAmount,
         uint256 amountInMax,
         bool isSwap0To1
-    ) external onlyOwner nonReentrant {
+    )
+        external
+        payable
+        onlyOwner
+        nonReentrant
+        returns (uint256 amount0, uint256 amount1, uint128 liquidity)
+    {
         // Withdraw all liquidity if there is a position
-        if (lowerTick != 0 && upperTick != 0) {
+        if (isActive) {
             burnAllLiquidity();
         }
 
@@ -271,11 +278,6 @@ contract YielderaVault is
         if (desiredSwapOutAmount > 0) {
             // Swap using the swap router contract
             if (isSwap0To1) {
-                if (isToken0Native) {
-                    // Wrap the token0 amount
-                    wrapHbar(amountInMax);
-                }
-
                 // Aprove the swap router to spend the token0
                 TransferHelper.safeApprove(
                     token0,
@@ -297,11 +299,6 @@ contract YielderaVault is
                     })
                 );
             } else {
-                if (isToken1Native) {
-                    // Wrap the token1 amount
-                    wrapHbar(amountInMax);
-                }
-
                 // Aprove the swap router to spend the token1
                 TransferHelper.safeApprove(
                     token1,
@@ -326,22 +323,32 @@ contract YielderaVault is
         }
 
         // Fetch the new balances
-        uint256 balance0;
-        uint256 balance1;
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
 
-        if (isToken0Native) {
-            balance0 = address(this).balance;
-        } else {
-            balance0 = IERC20(token0).balanceOf(address(this));
-        }
+        // Add the new liquidity with the new balances
+        liquidity = _liquidityForAmounts(
+            newLowerTick,
+            newUpperTick,
+            balance0,
+            balance1
+        );
 
-        if (isToken1Native) {
-            balance1 = address(this).balance;
-        } else {
-            balance1 = IERC20(token1).balanceOf(address(this));
-        }
+        (amount0, amount1) = _mintLiquidity(
+            newLowerTick,
+            newUpperTick,
+            liquidity
+        );
 
-        // Add the new liquidity
+        // Refund any extra hbar sent
+        NFPM.refundETH();
+
+        // Update the lower and upper ticks of the vault
+        lowerTick = newLowerTick;
+        upperTick = newUpperTick;
+        isActive = true;
+
+        emit MintLiquidity(msg.sender, 0, liquidity, amount0, amount1);
     }
 
     /// @notice Mint a new Liquidity to the pool
@@ -367,12 +374,6 @@ contract YielderaVault is
         require(balance0 >= amount0Max, "INSUFF_TOKEN0_BAL");
         require(balance1 >= amount1Max, "INSUFF_TOKEN1_BAL");
 
-        // Ensure ticks are valid
-        require(
-            tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
-            "TICK_NO_MUL_OF_SPAC"
-        );
-
         liquidity = _liquidityForAmounts(
             tickLower,
             tickUpper,
@@ -388,6 +389,7 @@ contract YielderaVault is
         // Update the lower and upper ticks of the vault
         lowerTick = tickLower;
         upperTick = tickUpper;
+        isActive = true;
 
         emit MintLiquidity(msg.sender, 0, liquidity, amount0, amount1);
     }
@@ -407,38 +409,9 @@ contract YielderaVault is
         // Update the lower and upper ticks of the vault to 0
         lowerTick = 0;
         upperTick = 0;
+        isActive = false;
 
         emit BurnAllLiquidity(msg.sender, amount0, amount1);
-    }
-
-    /**
-     @notice Collects and distributes fees accumulated in the ICHIVault's LP positions. Everybody is allowed to pay for this transaction.
-     @return fees0 collected token0 fees
-     @return fees1 collected token1 fees
-     */
-    function collectFees()
-        external
-        nonReentrant
-        returns (uint256 fees0, uint256 fees1)
-    {
-        (uint128 liquidity, , ) = _position(lowerTick, upperTick);
-        if (liquidity > 0) {
-            (uint256 fee0, uint256 fee1) = _burnAnyLiquidity(
-                lowerTick,
-                upperTick,
-                0, // no liquidity is burned, only fees are colleted
-                address(this),
-                true
-            );
-            fees0 = fees0 + fee0;
-            fees1 = fees1 + fee1;
-        }
-
-        emit CollectFees(msg.sender, fees0, fees1);
-
-        if (fees0 > 0 || fees1 > 0) {
-            _distributeFees(fees0, fees1);
-        }
     }
 
     /**
@@ -475,7 +448,7 @@ contract YielderaVault is
      @param amount0 Estimated amount of token0 that could be collected by burning the base position
      @param amount1 Estimated amount of token1 that could be collected by burning the base position
      */
-    function getBasePosition()
+    function getCurrentPosition()
         public
         view
         returns (uint128 liquidity, uint256 amount0, uint256 amount1)
@@ -602,6 +575,12 @@ contract YielderaVault is
         int24 tickUpper,
         uint128 liquidity
     ) internal returns (uint256 amount0, uint256 amount1) {
+        // Ensure ticks are valid
+        require(
+            tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
+            "TICK_NO_MUL_OF_SPAC"
+        );
+
         uint256 mintFee = IUniswapV3Factory(SAUCER_FACTORY_ADDRESS).mintFee();
         uint256 hbarMintFee;
 
