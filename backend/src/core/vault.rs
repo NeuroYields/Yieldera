@@ -10,7 +10,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{CONFIG, FEE_FACTOR},
     helpers,
-    types::{Pool, Token, VaultDetails},
+    types::{Pool, Token, VaultDetails, VaultTokenBalances},
 };
 
 sol!(
@@ -139,5 +139,46 @@ where
         upper_tick,
         is_active,
         is_vault_tokens_associated,
+    })
+}
+
+pub async fn get_vault_tokens_balances<P>(
+    provider: &P,
+    vault: &VaultDetails,
+) -> Result<VaultTokenBalances>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let token0 = &vault.pool.token0;
+    let token1 = &vault.pool.token1;
+
+    let token0_balance: f64;
+    let token1_balance: f64;
+    let token0_balance_u256: U256;
+    let token1_balance_u256: U256;
+
+    let balance = ERC20::new(Address::from_str(token0.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
+
+    token0_balance_u256 = balance;
+    token0_balance = format_units(balance, token0.decimals)?.parse()?;
+
+    let balance = ERC20::new(Address::from_str(token1.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
+
+    token1_balance_u256 = balance;
+    token1_balance = format_units(balance, token1.decimals)?.parse()?;
+
+    Ok(VaultTokenBalances {
+        token0_balance,
+        token1_balance,
+        token0_balance_u256,
+        token1_balance_u256,
     })
 }
