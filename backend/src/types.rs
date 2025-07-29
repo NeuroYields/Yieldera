@@ -74,3 +74,13 @@ pub struct PrepareSwapArgs {
     pub is_swap_0_to_1: bool,
     pub max_amount_in: U256,
 }
+
+/// Top-level config struct matching the TOML file structure
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TomlConfig {
+    pub rpc_url: String,
+    pub chain_id: u64,
+    pub non_fungible_position_manager_address: String,
+    pub hbar_evm_address: String,
+    pub vaults: Vec<String>,
+}

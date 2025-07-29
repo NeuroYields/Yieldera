@@ -1,0 +1,5 @@
+rpc_url = "https://mainnet.hashio.io/api"
+chain_id = 295
+non_fungible_position_manager_address = "0x00000000000000000000000000000000003ddbb9"
+hbar_evm_address = "0x0000000000000000000000000000000000163b5a"
+vaults = [""]

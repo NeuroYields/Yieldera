@@ -16,7 +16,7 @@ use utoipa_actix_web::AppExt;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    config::{CHAIN_ID, IS_NEW_CONTRACT, RPC_URL},
+    config::{CHAIN_ID, CONFIG, IS_NEW_CONTRACT, RPC_URL},
     state::AppState,
     types::Token,
 };
@@ -49,6 +49,8 @@ async fn main() -> std::io::Result<()> {
 
     // Initalize empty state
     let app_state = web::Data::new(AppState::new());
+
+    info!("Config: {:?}", *CONFIG);
 
     // Start the http server
     info!("Starting Http Server at http://127.0.0.1:8080");
