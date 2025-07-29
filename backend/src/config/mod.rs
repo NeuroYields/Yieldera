@@ -15,12 +15,12 @@ pub const NON_FUNGIBLE_POSITION_MANAGER_ADDRESS: &str =
 pub const YIELDERA_CONTRACT_ADDRESS: &str = "0xF022E0BC858E3D3aFE60fcEBc91A9fc80f7D29E8";
 pub const IS_NEW_CONTRACT: bool = false;
 
-
 #[derive(Debug, Clone)]
 pub struct Config {
     pub private_key: String,
     pub is_mainnet: bool,
     pub toml_config: TomlConfig,
+    pub admin_password: String,
 }
 
 impl Config {
@@ -32,6 +32,8 @@ impl Config {
             .unwrap_or("testnet".to_string())
             .to_lowercase()
             == "mainnet";
+
+        let admin_password = std::env::var("ADMIN_PASSWORD").expect("ADMIN_PASSWORD is not set");
 
         // Load config from toml file based on the environment (mainnet or testnet)
         let toml_config_file_path = if is_mainnet {
@@ -49,6 +51,7 @@ impl Config {
             private_key,
             is_mainnet,
             toml_config,
+            admin_password,
         }
     }
 }

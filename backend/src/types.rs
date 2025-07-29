@@ -119,5 +119,11 @@ pub struct TomlConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct AdminAssociateVaultTokensRequest {
-    pub vault_address: String,
+    pub password: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct ApiErrorResponse {
+    pub message: String,
+    pub error: String,
 }
