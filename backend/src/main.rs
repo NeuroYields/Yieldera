@@ -26,7 +26,7 @@ mod test {
         utils::{format_units, parse_units},
     };
 
-    use crate::helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault};
+    use crate::{helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault}, types::PrepareSwapArgs};
 
     use super::*;
 
@@ -305,14 +305,12 @@ mod test {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_deposit_withdraw_shares() -> Result<()> {
+        Ok(())
+    }
+
 }
 
-#[derive(Debug, Clone)]
-pub struct PrepareSwapArgs {
-    pub exact_amount_out: f64,
-    pub parsed_exact_amount_out: U256,
-    pub token_in: Token,
-    pub token_out: Token,
-    pub is_swap_0_to_1: bool,
-    pub max_amount_in: U256,
-}
+
