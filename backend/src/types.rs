@@ -11,7 +11,6 @@ pub struct Vaultdetails {
     pub total_supply: f64,
     pub lower_tick: i32,
     pub upper_tick: i32,
-    pub position_token_id: U256,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -56,4 +55,12 @@ pub struct Position {
     pub fee_growth_inside1_last_x128: U256,
     pub tokens_owed0: u128,
     pub tokens_owed1: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VaultTokenBalances {
+    pub token0_balance: f64,
+    pub token1_balance: f64,
+    pub token0_balance_u256: U256,
+    pub token1_balance_u256: U256,
 }

@@ -11,6 +11,14 @@
         "stateMutability": "nonpayable"
     },
     {
+        "type": "fallback",
+        "stateMutability": "payable"
+    },
+    {
+        "type": "receive",
+        "stateMutability": "payable"
+    },
+    {
         "type": "function",
         "name": "allowance",
         "inputs": [
@@ -117,6 +125,24 @@
     },
     {
         "type": "function",
+        "name": "collectFees",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "fees0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "fees1",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "currentTick",
         "inputs": [],
         "outputs": [
@@ -185,6 +211,29 @@
     },
     {
         "type": "function",
+        "name": "getBasePosition",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "liquidity",
+                "type": "uint128",
+                "internalType": "uint128"
+            },
+            {
+                "name": "amount0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount1",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "isToken0Native",
         "inputs": [],
         "outputs": [
@@ -227,11 +276,6 @@
         "name": "mintLiquidity",
         "inputs": [
             {
-                "name": "to",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
                 "name": "amount0Max",
                 "type": "uint256",
                 "internalType": "uint256"
@@ -250,19 +294,9 @@
                 "name": "tickUpper",
                 "type": "int24",
                 "internalType": "int24"
-            },
-            {
-                "name": "deadline",
-                "type": "uint256",
-                "internalType": "uint256"
             }
         ],
         "outputs": [
-            {
-                "name": "tokenId",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
             {
                 "name": "liquidity",
                 "type": "uint128",
@@ -279,7 +313,7 @@
                 "internalType": "uint256"
             }
         ],
-        "stateMutability": "nonpayable"
+        "stateMutability": "payable"
     },
     {
         "type": "function",
@@ -322,21 +356,59 @@
     },
     {
         "type": "function",
-        "name": "positionTokenId",
-        "inputs": [],
-        "outputs": [
+        "name": "rebalance",
+        "inputs": [
             {
-                "name": "",
+                "name": "newLowerTick",
+                "type": "int24",
+                "internalType": "int24"
+            },
+            {
+                "name": "newUpperTick",
+                "type": "int24",
+                "internalType": "int24"
+            },
+            {
+                "name": "desiredSwapOutAmount",
                 "type": "uint256",
                 "internalType": "uint256"
+            },
+            {
+                "name": "amountInMax",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "isSwap0To1",
+                "type": "bool",
+                "internalType": "bool"
             }
         ],
-        "stateMutability": "view"
+        "outputs": [],
+        "stateMutability": "nonpayable"
     },
     {
         "type": "function",
         "name": "renounceOwnership",
         "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "sweep",
+        "inputs": [
+            {
+                "name": "token",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
         "outputs": [],
         "stateMutability": "nonpayable"
     },
@@ -473,6 +545,42 @@
     },
     {
         "type": "function",
+        "name": "uniswapV3MintCallback",
+        "inputs": [
+            {
+                "name": "amount0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount1",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "unwrapWhbar",
+        "inputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "upperTick",
         "inputs": [],
         "outputs": [
@@ -506,6 +614,19 @@
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "wrapHbar",
+        "inputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [],
+        "stateMutability": "payable"
     },
     {
         "type": "event",
@@ -594,6 +715,31 @@
             },
             {
                 "name": "amount1",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "CollectFees",
+        "inputs": [
+            {
+                "name": "sender",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "fees0",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "fees1",
                 "type": "uint256",
                 "indexed": false,
                 "internalType": "uint256"
@@ -1076,17 +1222,12 @@
     },
     {
         "type": "error",
-        "name": "SafeCastOverflowedUintDowncast",
+        "name": "SafeERC20FailedOperation",
         "inputs": [
             {
-                "name": "bits",
-                "type": "uint8",
-                "internalType": "uint8"
-            },
-            {
-                "name": "value",
-                "type": "uint256",
-                "internalType": "uint256"
+                "name": "token",
+                "type": "address",
+                "internalType": "address"
             }
         ]
     }
