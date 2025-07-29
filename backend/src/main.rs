@@ -279,11 +279,13 @@ mod test {
 
         println!("Swap arg: {:#?}", swap_arg);
 
-        // TODO: call rebelance on the vault with new tick range and swap direction and amount
+        // call rebelance on the vault with new tick range and swap direction and amount
         let vault_contract = YielderaVault::new(Address::from_str(contract_address)?, evm_provider);
 
         let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
         let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+
+        let value_to_send: U256 = parse_units("1", 18)?.into();
 
         let rebalnce_reciept = vault_contract
             .rebalance(
@@ -293,6 +295,7 @@ mod test {
                 swap_arg.max_amount_in,
                 swap_arg.is_swap_0_to_1,
             )
+            .value(value_to_send)
             .send()
             .await?
             .get_receipt()

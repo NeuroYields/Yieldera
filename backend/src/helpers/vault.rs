@@ -463,37 +463,21 @@ where
     let token0_balance_u256: U256;
     let token1_balance_u256: U256;
 
-    if token0.is_native_wrapper {
-        // Remove 1 hbar from the balance to cover the fees of minting liquidity
-        let balance = provider.get_balance(vault_address).await? - U256::from(10_u64.pow(18));
+    let balance = ERC20::new(Address::from_str(token0.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
 
-        token0_balance = format_units(balance, 18)?.parse()?;
-        token0_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
-    } else {
-        let balance = ERC20::new(Address::from_str(token0.address.as_str())?, provider)
-            .balanceOf(vault_address)
-            .call()
-            .await?;
+    token0_balance = format_units(balance, token0.decimals)?.parse()?;
+    token0_balance_u256 = balance;
 
-        token0_balance = format_units(balance, token0.decimals)?.parse()?;
-        token0_balance_u256 = balance;
-    }
+    let balance = ERC20::new(Address::from_str(token1.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
 
-    if token1.is_native_wrapper {
-        // Remove 1 hbar from the balance to cover the fees of minting liquidity
-        let balance = provider.get_balance(vault_address).await? - U256::from(10_u64.pow(18));
-
-        token1_balance = format_units(balance, 18)?.parse()?;
-        token1_balance_u256 = balance / (U256::from(10).pow(U256::from(10)));
-    } else {
-        let balance = ERC20::new(Address::from_str(token1.address.as_str())?, provider)
-            .balanceOf(vault_address)
-            .call()
-            .await?;
-
-        token1_balance = format_units(balance, token1.decimals)?.parse()?;
-        token1_balance_u256 = balance;
-    }
+    token1_balance = format_units(balance, token1.decimals)?.parse()?;
+    token1_balance_u256 = balance;
 
     Ok(VaultTokenBalances {
         token0_balance,
