@@ -16,6 +16,8 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./interfaces/IWhbarHelper.sol";
 import "./interfaces/ISwapRouter.sol";
 import "./interfaces/callback/IUniswapV3MintCallback.sol";
+import "./libraries/HbarConversion.sol";
+import "./interfaces/IUniswapV3Factory.sol";
 
 contract YielderaVault is
     ERC20,
@@ -34,6 +36,8 @@ contract YielderaVault is
         address(0x000000000000000000000000000000000050a8a7);
     address constant SAUCER_NFT_TOKEN =
         address(0x000000000000000000000000000000000013feE4);
+    address constant SAUCER_FACTORY_ADDRESS =
+        address(0x00000000000000000000000000000000001243eE);
     INonfungiblePositionManager constant NFPM =
         INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
     ISwapRouter constant SWAP_ROUTER =
@@ -51,7 +55,6 @@ contract YielderaVault is
     // State variables
     int24 public upperTick;
     int24 public lowerTick;
-    uint256 public positionTokenId;
 
     // Events
     event Deposit(
@@ -108,6 +111,8 @@ contract YielderaVault is
         uint256 amount0,
         uint256 amount1
     );
+
+    event CollectFees(address indexed sender, uint256 fees0, uint256 fees1);
 
     event AssociateToken(address indexed token);
 
@@ -258,7 +263,7 @@ contract YielderaVault is
         bool isSwap0To1
     ) external onlyOwner nonReentrant {
         // Withdraw all liquidity if there is a position
-        if (positionTokenId != 0) {
+        if (lowerTick != 0 && upperTick != 0) {
             burnAllLiquidity();
         }
 
@@ -340,131 +345,11 @@ contract YielderaVault is
     }
 
     /// @notice Mint a new Liquidity to the pool
-    /// @param to The address to receive the NFT
     /// @param amount0Max The maximum amount of token0 to deposit
     /// @param amount1Max The maximum amount of token1 to deposit
     /// @param tickLower The lower tick of the range
     /// @param tickUpper The upper tick of the range
-    /// @param deadline The deadline for the transaction
     function mintLiquidity(
-        address to,
-        uint256 amount0Max,
-        uint256 amount1Max,
-        int24 tickLower,
-        int24 tickUpper,
-        uint256 deadline
-    )
-        external
-        onlyOwner
-        returns (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        )
-    {
-        // Ensure vault has enough balance to execute this mint
-        uint256 balance0;
-        uint256 balance1;
-
-        if (isToken0Native) {
-            balance0 = address(this).balance;
-        } else {
-            balance0 = IERC20(token0).balanceOf(address(this));
-        }
-
-        if (isToken1Native) {
-            balance1 = address(this).balance;
-        } else {
-            balance1 = IERC20(token1).balanceOf(address(this));
-        }
-
-        require(balance0 >= amount0Max, "INSUFF_TOKEN0_BAL");
-        require(balance1 >= amount1Max, "INSUFF_TOKEN1_BAL");
-
-        // Ensure ticks are valid
-        require(
-            tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
-            "TICK_NO_MUL_OF_SPAC"
-        );
-
-        // Do the needed approves
-        if (!isToken0Native) {
-            TransferHelper.safeApprove(token0, address(NFPM), amount0Max);
-        }
-
-        if (!isToken1Native) {
-            TransferHelper.safeApprove(token1, address(NFPM), amount1Max);
-        }
-
-        // Mint the liquidity
-        INonfungiblePositionManager.MintParams
-            memory params = INonfungiblePositionManager.MintParams({
-                token0: token0,
-                token1: token1,
-                fee: fee,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                amount0Desired: amount0Max,
-                amount1Desired: amount1Max,
-                amount0Min: 0,
-                amount1Min: 0,
-                recipient: to,
-                deadline: deadline
-            });
-
-        // 0.5 hbar fee by default
-        // uint256 valueToSend = 500000000000000000;
-        // 0.5 hbar fee by default with 8 decimals
-        uint256 valueToSend = 50_000_000;
-
-        if (token0 == WHBAR_ADDRESS) {
-            valueToSend += amount0Max;
-            // Check if the balance of the contract is enough to cover the amount of HBAR to be sent
-            require(
-                address(this).balance >= valueToSend,
-                string.concat(
-                    "HBAR_BALANCE_LESS: balance ",
-                    Strings.toString(address(this).balance),
-                    ", required ",
-                    Strings.toString(valueToSend)
-                )
-            );
-        } else if (token1 == WHBAR_ADDRESS) {
-            valueToSend += amount1Max;
-            // Check if the balance of the contract is enough to cover the amount of HBAR to be sent
-            require(
-                address(this).balance >= valueToSend,
-                string.concat(
-                    "HBAR_BALANCE_LESS: balance ",
-                    Strings.toString(address(this).balance),
-                    ", required ",
-                    Strings.toString(valueToSend)
-                )
-            );
-        }
-
-        (tokenId, liquidity, amount0, amount1) = NFPM.mint{value: valueToSend}(
-            params
-        );
-
-        // Refund any extra hbar sent
-        NFPM.refundETH();
-
-        // Update the lower and upper ticks of the vault
-        lowerTick = tickLower;
-        upperTick = tickUpper;
-        positionTokenId = tokenId;
-
-        emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
-    }
-
-    /// @notice Mint a new Liquidity to the pool
-    /// @param amount0Max The maximum amount of token0 to deposit
-    /// @param amount1Max The maximum amount of token1 to deposit
-    /// @param tickLower The lower tick of the range
-    /// @param tickUpper The upper tick of the range
-    function mintLiquidity2(
         uint256 amount0Max,
         uint256 amount1Max,
         int24 tickLower,
@@ -473,12 +358,7 @@ contract YielderaVault is
         external
         payable
         onlyOwner
-        returns (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        )
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1)
     {
         // Ensure vault has enough balance to execute this mint
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
@@ -493,21 +373,6 @@ contract YielderaVault is
             "TICK_NO_MUL_OF_SPAC"
         );
 
-        // 0.5 hbar fee by default
-        // uint256 valueToSend = 500000000000000000;
-        // 0.5 hbar fee by default with 8 decimals
-        uint256 valueToSend = 50_000_000;
-
-        require(
-            msg.value >= valueToSend,
-            string.concat(
-                "INSUFF_SENT_HBAR: Sendet hbar ",
-                Strings.toString(msg.value),
-                ", required ",
-                Strings.toString(valueToSend)
-            )
-        );
-
         liquidity = _liquidityForAmounts(
             tickLower,
             tickUpper,
@@ -515,13 +380,7 @@ contract YielderaVault is
             amount1Max
         );
 
-        (amount0, amount1) = IUniswapV3Pool(pool).mint{value: valueToSend}(
-            address(this),
-            tickLower,
-            tickUpper,
-            liquidity,
-            abi.encode(address(this))
-        );
+        (amount0, amount1) = _mintLiquidity(tickLower, tickUpper, liquidity);
 
         // Refund any extra hbar sent
         NFPM.refundETH();
@@ -529,9 +388,8 @@ contract YielderaVault is
         // Update the lower and upper ticks of the vault
         lowerTick = tickLower;
         upperTick = tickUpper;
-        positionTokenId = tokenId;
 
-        emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
+        emit MintLiquidity(msg.sender, 0, liquidity, amount0, amount1);
     }
 
     /// @notice Burn all the liquidity from the pool
@@ -540,28 +398,101 @@ contract YielderaVault is
         onlyOwner
         returns (uint256 amount0, uint256 amount1)
     {
-        require(
-            upperTick != 0 && lowerTick != 0 && positionTokenId != 0,
-            "NO_LIQUIDITY"
-        );
+        require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
 
-        /// Withdraw all liquidity and collect all fees from Uniswap pool
-        (uint128 liquidity, uint256 fees0, uint256 fees1) = currentPosition();
+        (uint128 liquidity, , ) = _position(lowerTick, upperTick);
 
-        // Burn the liquidity from the pool
-        (amount0, amount1) = _burnLiquidity(
-            liquidity,
-            address(this),
-            fees0,
-            fees1
-        );
+        _burnLiquidity(lowerTick, upperTick, liquidity, address(this), true);
 
         // Update the lower and upper ticks of the vault to 0
         lowerTick = 0;
         upperTick = 0;
-        positionTokenId = 0;
 
         emit BurnAllLiquidity(msg.sender, amount0, amount1);
+    }
+
+    /**
+     @notice Collects and distributes fees accumulated in the ICHIVault's LP positions. Everybody is allowed to pay for this transaction.
+     @return fees0 collected token0 fees
+     @return fees1 collected token1 fees
+     */
+    function collectFees()
+        external
+        nonReentrant
+        returns (uint256 fees0, uint256 fees1)
+    {
+        (uint128 liquidity, , ) = _position(lowerTick, upperTick);
+        if (liquidity > 0) {
+            (uint256 fee0, uint256 fee1) = _burnAnyLiquidity(
+                lowerTick,
+                upperTick,
+                0, // no liquidity is burned, only fees are colleted
+                address(this),
+                true
+            );
+            fees0 = fees0 + fee0;
+            fees1 = fees1 + fee1;
+        }
+
+        emit CollectFees(msg.sender, fees0, fees1);
+
+        if (fees0 > 0 || fees1 > 0) {
+            _distributeFees(fees0, fees1);
+        }
+    }
+
+    /**
+     * @dev Allows the owner to transfer out any tokens from the contract except
+     * for the vault tokens i.e. token0 and token1.
+     *
+     * This function is intended to be used for retrieving tokens mistakenly sent to
+     * the contract or for managing other tokens(i.e. rewards) held by the contract.
+     *
+     * Requirements:
+     * - Only the contract owner can call this function.
+     * - The 'token' parameter must not be equal to 'token0' or 'token1'.
+     *
+     * @param token The address of the ERC20 token to be swept.
+     * @param to The address where the tokens should be transferred.
+     */
+    function sweep(address token, address to) external onlyOwner {
+        require(token != token0 && token != token1, "IV.sweep: VT not allowed"); // do not allow sweeping of either vault token
+        uint256 amount = IERC20(token).balanceOf(address(this));
+
+        if (amount > 0) {
+            IERC20(token).safeTransfer(to, amount);
+        }
+    }
+
+    /*////////////////////////////////////////////////// 
+                    Fetchers 
+    ///////////////////////////////////////////////////
+    */
+
+    /**
+     @notice Calculates amount of total liquidity in the base position
+     @param liquidity Amount of total liquidity in the base position
+     @param amount0 Estimated amount of token0 that could be collected by burning the base position
+     @param amount1 Estimated amount of token1 that could be collected by burning the base position
+     */
+    function getBasePosition()
+        public
+        view
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
+        (
+            uint128 positionLiquidity,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        ) = _position(lowerTick, upperTick);
+        (amount0, amount1) = _amountsForLiquidity(
+            lowerTick,
+            upperTick,
+            positionLiquidity
+        );
+        liquidity = positionLiquidity;
+        amount0 = amount0 + uint256(tokensOwed0);
+        amount1 = amount1 + uint256(tokensOwed1);
     }
 
     /// @notice Returns current price tick
@@ -572,115 +503,9 @@ contract YielderaVault is
         tick = tick_;
     }
 
-    ///@notice function that GETS teh position of the vault
-    function getCurrentPosition()
-        public
-        view
-        returns (
-            address token0_p,
-            address token1_p,
-            uint24 fee_p,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        )
-    {
-        (
-            token0_p,
-            token1_p,
-            fee_p,
-            tickLower,
-            tickUpper,
-            liquidity,
-            feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128,
-            tokensOwed0,
-            tokensOwed1
-        ) = NFPM.positions(positionTokenId);
-    }
-
-    ///@notice function that GETS teh position by nft id
-    /// @param tokenSN The serial number of the token that represents the position
-    function getPositionById(
-        uint256 tokenSN
-    )
-        public
-        view
-        returns (
-            address token0_p,
-            address token1_p,
-            uint24 fee_p,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        )
-    {
-        (
-            token0_p,
-            token1_p,
-            fee_p,
-            tickLower,
-            tickUpper,
-            liquidity,
-            feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128,
-            tokensOwed0,
-            tokensOwed1
-        ) = NFPM.positions(tokenSN);
-    }
-
     /*//////////////////////////////////////////////////////////////
                                INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    /// @notice Burn liquidity from the sender and collect tokens owed for the liquidity
-    /// @param liquidity The amount of liquidity to burn
-    /// @param to The address which should receive the fees collected
-    /// @return amount0 The amount of fees collected in token0
-    /// @return amount1 The amount of fees collected in token1
-    function _burnLiquidity(
-        uint128 liquidity,
-        address to,
-        uint256 amount0Min,
-        uint256 amount1Min
-    ) internal returns (uint256 amount0, uint256 amount1) {
-        // First Decrease the liquidity
-        NFPM.decreaseLiquidity(
-            INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenSN: positionTokenId,
-                liquidity: liquidity,
-                amount0Min: amount0Min,
-                amount1Min: amount1Min,
-                deadline: type(uint256).max
-            })
-        );
-
-        // Collect all the fees
-        (amount0, amount1) = NFPM.collect(
-            INonfungiblePositionManager.CollectParams({
-                tokenSN: positionTokenId,
-                recipient: to,
-                amount0Max: type(uint128).max,
-                amount1Max: type(uint128).max
-            })
-        );
-
-        // If the token is hbar, unwrap it
-        if (isToken0Native && amount0 > 0) {
-            unwrapWhbar(amount0);
-        }
-        if (isToken1Native && amount1 > 0) {
-            unwrapWhbar(amount1);
-        }
-    }
 
     /// @notice returns equivalent _tokenOut for _amountIn, _tokenIn using spot price
     /// @param _tokenIn  token the input amount is in
@@ -701,22 +526,6 @@ contract YielderaVault is
                 _tokenIn,
                 _tokenOut
             );
-    }
-
-    /**
-     @notice Returns information about the curuent liquidity position.
-     @return liquidity liquidity amount
-     @return tokensOwed0 amount of token0 owed to the owner of the position
-     @return tokensOwed1 amount of token1 owed to the owner of the position
-     */
-    function currentPosition()
-        public
-        view
-        returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
-    {
-        (, , , , , liquidity, , , tokensOwed0, tokensOwed1) = NFPM.positions(
-            positionTokenId
-        );
     }
 
     /**
@@ -769,6 +578,195 @@ contract YielderaVault is
             if (amount1 > 0)
                 IERC20(token1).safeTransferFrom(payer, msg.sender, amount1);
         }
+    }
+
+    /**
+     @notice uint128Safe function
+     @param x input value
+     */
+    function _uint128Safe(uint256 x) internal pure returns (uint128) {
+        require(x <= type(uint128).max, "IV.128_OF");
+        return uint128(x);
+    }
+
+    /**
+     @notice Mint liquidity in Uniswap V3 pool.
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param liquidity Amount of liquidity to mint
+     @param amount0 Used amount of token0
+     @param amount1 Used amount of token1
+     */
+    function _mintLiquidity(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        uint256 mintFee = IUniswapV3Factory(SAUCER_FACTORY_ADDRESS).mintFee();
+        uint256 hbarMintFee;
+
+        if (mintFee > 0) {
+            hbarMintFee = HbarConversion.tinycentsToTinybars(mintFee);
+
+            // Slop for conversion rounding
+            hbarMintFee += 1;
+            require(address(this).balance >= hbarMintFee, "MF");
+        }
+
+        if (liquidity > 0) {
+            (amount0, amount1) = IUniswapV3Pool(pool).mint{value: hbarMintFee}(
+                address(this),
+                tickLower,
+                tickUpper,
+                liquidity,
+                abi.encode(address(this))
+            );
+        }
+    }
+
+    /**
+     @notice Sends portion of swap fees to feeRecipient and affiliate.
+     @param fees0 fees for token0
+     @param fees1 fees for token1
+     */
+    function _distributeFees(uint256 fees0, uint256 fees1) internal {
+        //TODO: distribute fees
+        // UV3Math.distributeFees(
+        //     ichiVaultFactory,
+        //     token0,
+        //     token1,
+        //     affiliate,
+        //     ammFeeRecipient,
+        //     fees0,
+        //     fees1
+        // );
+    }
+
+    /**
+     @notice Burn liquidity in a Uniswap V3 pool.
+    @param tickLower Lower tick of the liquidity position.
+    @param tickUpper Upper tick of the liquidity position.
+    @param liquidity Amount of liquidity to burn.
+    @param to Account to receive token0 and token1 amounts.
+    @param collectAll Flag indicating if all token0 and token1 tokens should
+                    be collected, or only those released during this burn.
+    @param amount0 Released amount of token0.
+    @param amount1 Released amount of token1.
+    */
+    function _burnLiquidity(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity,
+        address to,
+        bool collectAll
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        if (liquidity > 0) {
+            return
+                _burnAnyLiquidity(
+                    tickLower,
+                    tickUpper,
+                    liquidity,
+                    to,
+                    collectAll
+                );
+        }
+    }
+
+    /**
+     @notice Burn liquidity in Uniswap V3 pool. If liquidity equals to zero, only collect fees
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param liquidity amount of liquidity to burn. Could be zero
+     @param to The account to receive token0 and token1 amounts
+     @param collectAll Flag that indicates whether all token0 and token1 tokens should be collected or only the ones released during this burn
+     @return amount0 released amount of token0
+     @return amount1 released amount of token1
+     */
+    function _burnAnyLiquidity(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity,
+        address to,
+        bool collectAll
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        // Burn liquidity
+        (uint256 owed0, uint256 owed1) = IUniswapV3Pool(pool).burn(
+            tickLower,
+            tickUpper,
+            liquidity
+        );
+
+        // Collect amount owed
+        uint128 collect0 = collectAll ? type(uint128).max : _uint128Safe(owed0);
+        uint128 collect1 = collectAll ? type(uint128).max : _uint128Safe(owed1);
+        if (collect0 > 0 || collect1 > 0) {
+            (amount0, amount1) = IUniswapV3Pool(pool).collect(
+                to,
+                tickLower,
+                tickUpper,
+                collect0,
+                collect1
+            );
+        }
+    }
+
+    /**
+     @notice Calculates liquidity amount for the given shares.
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param shares number of shares
+     */
+    function _liquidityForShares(
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 shares
+    ) internal view returns (uint128) {
+        (uint128 position, , ) = _position(tickLower, tickUpper);
+        return _uint128Safe((uint256(position) * shares) / totalSupply());
+    }
+
+    /**
+     @notice Calculates token0 and token1 amounts for liquidity in a position
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param liquidity Amount of liquidity in the position
+     */
+    function _amountsForLiquidity(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity
+    ) internal view returns (uint256, uint256) {
+        (uint160 sqrtRatioX96, , , , , , ) = IUniswapV3Pool(pool).slot0();
+        return
+            UV3Math.getAmountsForLiquidity(
+                sqrtRatioX96,
+                UV3Math.getSqrtRatioAtTick(tickLower),
+                UV3Math.getSqrtRatioAtTick(tickUpper),
+                liquidity
+            );
+    }
+
+    /**
+     @notice Returns information about the liquidity position.
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param liquidity liquidity amount
+     @param tokensOwed0 amount of token0 owed to the owner of the position
+     @param tokensOwed1 amount of token1 owed to the owner of the position
+     */
+    function _position(
+        int24 tickLower,
+        int24 tickUpper
+    )
+        internal
+        view
+        returns (uint128 liquidity, uint128 tokensOwed0, uint128 tokensOwed1)
+    {
+        bytes32 positionKey = keccak256(
+            abi.encodePacked(address(this), tickLower, tickUpper)
+        );
+        (liquidity, , , tokensOwed0, tokensOwed1) = IUniswapV3Pool(pool)
+            .positions(positionKey);
     }
 
     ///@notice function that makes the contract accespst native transfers
