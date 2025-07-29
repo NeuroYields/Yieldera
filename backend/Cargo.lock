@@ -5060,6 +5060,7 @@ dependencies = [
  "alloy",
  "color-eyre",
  "dotenvy",
+ "once_cell",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
