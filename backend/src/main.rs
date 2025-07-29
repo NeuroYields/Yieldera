@@ -1,21 +1,46 @@
+mod api;
 mod config;
 mod helpers;
+mod state;
 mod strategies;
 mod types;
 
 use std::str::FromStr;
 
+use actix_web::{App, HttpServer, web};
 use alloy::{primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
 use color_eyre::eyre::Result;
+use utoipa_actix_web::AppExt;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     config::{CHAIN_ID, IS_NEW_CONTRACT, RPC_URL},
+    state::AppState,
     types::Token,
 };
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    Ok(())
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // Initalize empty state
+    let app_state = web::Data::new(AppState::new());
+
+    // Start the http server
+    println!("Starting Http Server at http://127.0.0.1:8080");
+    println!("Starting SWAGGER Server at http://127.0.0.1:8080/swagger-ui/");
+
+    HttpServer::new(move || {
+        let (app, app_api) = App::new()
+            .into_utoipa_app()
+            .app_data(web::Data::clone(&app_state))
+            .service(api::get_index_service)
+            .service(api::get_health_service)
+            .split_for_parts();
+
+        app.service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", app_api))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
 
 #[cfg(test)]
