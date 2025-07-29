@@ -8,7 +8,7 @@ mod types;
 
 use actix_web::{App, HttpServer, web};
 
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa_actix_web::AppExt;
 use utoipa_swagger_ui::SwaggerUi;
@@ -48,6 +48,25 @@ async fn main() -> std::io::Result<()> {
 
     // Init all vaults and store them in the app state
     init_all_vaults(&app_state).await.unwrap();
+
+    let all_vaults_addresses = &CONFIG.toml_config.vaults;
+
+    //  Open a tokio thread for each vault stored in the app state, and start the liquidity management loop
+    for address in all_vaults_addresses {
+        let cloned_app_state = app_state.clone();
+        tokio::spawn(async move {
+            match core::vault_spawn::start_vault_liq_management(address, cloned_app_state).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!(
+                        "Failed on start vault liq management for address: {:?}",
+                        address
+                    );
+                    error!("Error: {:?}", e);
+                }
+            };
+        });
+    }
 
     // Start the http server
     info!("Starting Http Server at http://127.0.0.1:8080");
