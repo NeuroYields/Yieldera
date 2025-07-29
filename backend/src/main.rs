@@ -20,13 +20,19 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use alloy::primitives::{
-        Address,
-        aliases::I24,
-        utils::{format_units, parse_units},
+    use alloy::{
+        primitives::{
+            Address,
+            aliases::I24,
+            utils::{format_units, parse_units},
+        },
+        providers::WalletProvider,
     };
 
-    use crate::helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault};
+    use crate::{
+        helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault},
+        types::PrepareSwapArgs,
+    };
 
     use super::*;
 
@@ -305,14 +311,90 @@ mod test {
 
         Ok(())
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct PrepareSwapArgs {
-    pub exact_amount_out: f64,
-    pub parsed_exact_amount_out: U256,
-    pub token_in: Token,
-    pub token_out: Token,
-    pub is_swap_0_to_1: bool,
-    pub max_amount_in: U256,
+    #[tokio::test]
+    async fn test_deposit_withdraw_shares() -> Result<()> {
+        // load env vars
+        dotenvy::dotenv().ok();
+
+        let private_key = std::env::var("PRIVATE_KEY")?;
+
+        let evm_signer = PrivateKeySigner::from_str(private_key.as_str())?;
+
+        // Init provider with the specified rpc url in config
+        let evm_provider = ProviderBuilder::new()
+            .with_chain_id(CHAIN_ID)
+            .wallet(evm_signer)
+            .connect(RPC_URL)
+            .await?;
+
+        let contract_address = config::YIELDERA_CONTRACT_ADDRESS;
+
+        let mut vault_details =
+            helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
+
+        println!("{:#?}", vault_details);
+
+        if IS_NEW_CONTRACT {
+            println!("Associating vault tokens...");
+            helpers::vault::associate_vault_tokens(&evm_provider, &mut vault_details).await?;
+            println!("Associated vault tokens.");
+        }
+
+        // Deposit tokens to vault
+        let deposit_reciept =
+            helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 1.0, 0.0)
+                .await?;
+
+        // let deposit_logs = deposit_reciept.logs();
+
+        // for log in deposit_logs {
+        //     let log_data = log.data();
+        //     let data = log_data.data.clone();
+
+        //     // decode the log data
+        //     let decoded_log = log.log_decode()?;
+        // }
+
+        // Get my vault shares
+        let (vault_shares_u256, vault_shares) = helpers::vault::get_vault_shares_by_address(
+            &evm_provider,
+            &vault_details,
+            evm_provider.default_signer_address().to_string().as_str(),
+        )
+        .await?;
+
+        println!("My vault shares: {:#?}", vault_shares);
+        println!("My vault shares u256: {:#?}", vault_shares_u256);
+
+        // Withdraw shares from vault
+        helpers::vault::withdraw_shares_from_vault(
+            &evm_provider,
+            &vault_details,
+            vault_shares_u256,
+            evm_provider.default_signer_address(),
+        )
+        .await?;
+
+        // Get vault shares after withdraw
+        let (vault_shares_after_u256, vault_shares_after) =
+            helpers::vault::get_vault_shares_by_address(
+                &evm_provider,
+                &vault_details,
+                evm_provider.default_signer_address().to_string().as_str(),
+            )
+            .await?;
+
+        println!("Vault shares after withdraw: {:?}", vault_shares_after);
+        println!(
+            "Vault shares after withdraw u256: {:?}",
+            vault_shares_after_u256
+        );
+
+        // Check if vault shares are 0 after withdraw
+        assert_eq!(vault_shares_after, 0.0);
+        assert_eq!(vault_shares_after_u256, U256::ZERO);
+
+        Ok(())
+    }
 }

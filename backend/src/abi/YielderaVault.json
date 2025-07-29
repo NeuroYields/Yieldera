@@ -20,6 +20,19 @@
     },
     {
         "type": "function",
+        "name": "PRECISION",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "allowance",
         "inputs": [
             {
@@ -125,24 +138,6 @@
     },
     {
         "type": "function",
-        "name": "collectFees",
-        "inputs": [],
-        "outputs": [
-            {
-                "name": "fees0",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "fees1",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "stateMutability": "nonpayable"
-    },
-    {
-        "type": "function",
         "name": "currentTick",
         "inputs": [],
         "outputs": [
@@ -211,7 +206,7 @@
     },
     {
         "type": "function",
-        "name": "getBasePosition",
+        "name": "getCurrentPosition",
         "inputs": [],
         "outputs": [
             {
@@ -228,6 +223,37 @@
                 "name": "amount1",
                 "type": "uint256",
                 "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "getTotalAmounts",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "total0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "total1",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "isActive",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
             }
         ],
         "stateMutability": "view"
@@ -343,6 +369,19 @@
     },
     {
         "type": "function",
+        "name": "performanceFee",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint24",
+                "internalType": "uint24"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "pool",
         "inputs": [],
         "outputs": [
@@ -350,6 +389,19 @@
                 "name": "",
                 "type": "address",
                 "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "poolContract",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IUniswapV3Pool"
             }
         ],
         "stateMutability": "view"
@@ -384,13 +436,42 @@
                 "internalType": "bool"
             }
         ],
-        "outputs": [],
-        "stateMutability": "nonpayable"
+        "outputs": [
+            {
+                "name": "amount0",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount1",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "liquidity",
+                "type": "uint128",
+                "internalType": "uint128"
+            }
+        ],
+        "stateMutability": "payable"
     },
     {
         "type": "function",
         "name": "renounceOwnership",
         "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "setPerformanceFee",
+        "inputs": [
+            {
+                "name": "_performanceFee",
+                "type": "uint24",
+                "internalType": "uint24"
+            }
+        ],
         "outputs": [],
         "stateMutability": "nonpayable"
     },
@@ -594,13 +675,63 @@
     },
     {
         "type": "function",
+        "name": "vaultFees0",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "vaultFees1",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "withdraw",
         "inputs": [
             {
-                "name": "token",
+                "name": "shares",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "to",
                 "type": "address",
                 "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "amount0",
+                "type": "uint256",
+                "internalType": "uint256"
             },
+            {
+                "name": "amount1",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "withdrawNative",
+        "inputs": [
             {
                 "name": "amount",
                 "type": "uint256",

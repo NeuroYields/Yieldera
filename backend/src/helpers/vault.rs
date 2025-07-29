@@ -7,6 +7,7 @@ use alloy::{
         utils::{format_units, parse_units},
     },
     providers::{Provider, WalletProvider},
+    rpc::types::TransactionReceipt,
     sol,
 };
 use color_eyre::eyre::Result;
@@ -165,7 +166,7 @@ pub async fn deposit_tokens_to_vault<P>(
     vault: &Vaultdetails,
     deposit0: f64,
     deposit1: f64,
-) -> Result<()>
+) -> Result<TransactionReceipt>
 where
     P: Provider + WalletProvider,
 {
@@ -325,7 +326,7 @@ where
         return Err(color_eyre::eyre::eyre!("Deposit transaction failed"));
     }
 
-    Ok(())
+    Ok(deposit_receipt)
 }
 
 pub async fn mint_liquidity_from_amount0<P>(
@@ -485,4 +486,62 @@ where
         token0_balance_u256,
         token1_balance_u256,
     })
+}
+
+pub async fn get_vault_shares_by_address<P>(
+    evm_provider: &P,
+    vault_details: &Vaultdetails,
+    address: &str,
+) -> Result<(U256, f64)>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault_details.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, evm_provider);
+
+    let shares_u256 = vault_contract
+        .balanceOf(Address::from_str(address)?)
+        .call()
+        .await?;
+
+    let shares = format_units(shares_u256, 18)?.parse::<f64>()?;
+
+    Ok((shares_u256, shares))
+}
+
+pub async fn withdraw_shares_from_vault<P>(
+    evm_provider: &P,
+    vault_details: &Vaultdetails,
+    shares_u256: U256,
+    to_address: Address,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault_details.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, evm_provider);
+
+    let withdraw_tx = vault_contract
+        .withdraw(shares_u256, to_address)
+        .send()
+        .await?;
+
+    let withdraw_receipt = withdraw_tx.get_receipt().await?;
+
+    let withdraw_tx_hash = withdraw_receipt.transaction_hash;
+    let withdraw_status = withdraw_receipt.status();
+
+    println!("Withdraw transaction hash: {}", withdraw_tx_hash);
+    println!("Withdraw transaction status: {}", withdraw_status);
+
+    if !withdraw_status {
+        return Err(color_eyre::eyre::eyre!(
+            "Withdraw transaction failed with receipt: {:?}",
+            withdraw_receipt
+        ));
+    }
+
+    Ok(())
 }

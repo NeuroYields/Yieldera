@@ -64,3 +64,13 @@ pub struct VaultTokenBalances {
     pub token0_balance_u256: U256,
     pub token1_balance_u256: U256,
 }
+
+#[derive(Debug, Clone)]
+pub struct PrepareSwapArgs {
+    pub exact_amount_out: f64,
+    pub parsed_exact_amount_out: U256,
+    pub token_in: Token,
+    pub token_out: Token,
+    pub is_swap_0_to_1: bool,
+    pub max_amount_in: U256,
+}
