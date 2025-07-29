@@ -509,3 +509,39 @@ where
 
     Ok((shares_u256, shares))
 }
+
+pub async fn withdraw_shares_from_vault<P>(
+    evm_provider: &P,
+    vault_details: &Vaultdetails,
+    shares_u256: U256,
+    to_address: Address,
+) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault_details.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, evm_provider);
+
+    let withdraw_tx = vault_contract
+        .withdraw(shares_u256, to_address)
+        .send()
+        .await?;
+
+    let withdraw_receipt = withdraw_tx.get_receipt().await?;
+
+    let withdraw_tx_hash = withdraw_receipt.transaction_hash;
+    let withdraw_status = withdraw_receipt.status();
+
+    println!("Withdraw transaction hash: {}", withdraw_tx_hash);
+    println!("Withdraw transaction status: {}", withdraw_status);
+
+    if !withdraw_status {
+        return Err(color_eyre::eyre::eyre!(
+            "Withdraw transaction failed with receipt: {:?}",
+            withdraw_receipt
+        ));
+    }
+
+    Ok(())
+}

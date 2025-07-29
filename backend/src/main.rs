@@ -367,6 +367,34 @@ mod test {
         println!("My vault shares: {:#?}", vault_shares);
         println!("My vault shares u256: {:#?}", vault_shares_u256);
 
+        // Withdraw shares from vault
+        helpers::vault::withdraw_shares_from_vault(
+            &evm_provider,
+            &vault_details,
+            vault_shares_u256,
+            evm_provider.default_signer_address(),
+        )
+        .await?;
+
+        // Get vault shares after withdraw
+        let (vault_shares_after_u256, vault_shares_after) =
+            helpers::vault::get_vault_shares_by_address(
+                &evm_provider,
+                &vault_details,
+                evm_provider.default_signer_address().to_string().as_str(),
+            )
+            .await?;
+
+        println!("Vault shares after withdraw: {:?}", vault_shares_after);
+        println!(
+            "Vault shares after withdraw u256: {:?}",
+            vault_shares_after_u256
+        );
+
+        // Check if vault shares are 0 after withdraw
+        assert_eq!(vault_shares_after, 0.0);
+        assert_eq!(vault_shares_after_u256, U256::ZERO);
+
         Ok(())
     }
 }
