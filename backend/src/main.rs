@@ -20,9 +20,13 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use alloy::primitives::utils::format_units;
+    use alloy::primitives::{
+        Address,
+        aliases::I24,
+        utils::{format_units, parse_units},
+    };
 
-    use crate::helpers::math::uniswap_v3::liquidity_math;
+    use crate::helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault};
 
     use super::*;
 
@@ -98,6 +102,77 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_mint_without_native_coin() -> Result<()> {
+        // load env vars
+        dotenvy::dotenv().ok();
+
+        let private_key = std::env::var("PRIVATE_KEY")?;
+
+        let evm_signer = PrivateKeySigner::from_str(private_key.as_str())?;
+
+        // Init provider with the specified rpc url in config
+        let evm_provider = ProviderBuilder::new()
+            .with_chain_id(CHAIN_ID)
+            .wallet(evm_signer)
+            .connect(RPC_URL)
+            .await?;
+
+        let contract_address = config::YIELDERA_CONTRACT_ADDRESS;
+
+        let mut vault_details =
+            helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
+
+        println!("{:#?}", vault_details);
+
+        if IS_NEW_CONTRACT {
+            println!("Associating vault tokens...");
+            helpers::vault::associate_vault_tokens(&evm_provider, &mut vault_details).await?;
+            println!("Associated vault tokens.");
+            helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 2.0, 1000.0)
+                .await?;
+        }
+
+        // Start strategy thta will get me the best tick range to put liq on
+        let tick_range = strategies::basic::get_best_range(&vault_details).await?;
+
+        println!("Tick range: {:#?}", tick_range);
+
+        // Estimate how much needed of token1 based on the provided amount0
+        let amount0 = 0.3;
+
+        println!("Trying to mint liquidity with Recommended tick range...");
+        helpers::vault::mint_liquidity_from_amount0(
+            &evm_provider,
+            &vault_details,
+            tick_range.lower_tick,
+            tick_range.upper_tick,
+            amount0,
+        )
+        .await?;
+        println!("Minted liquidity with fixed approciate tick range.");
+
+        helpers::vault::update_vault_current_position_data(&evm_provider, &mut vault_details)
+            .await?;
+
+        println!("Updated Vault : {:#?}", vault_details);
+
+        // Get a position detail by id
+        let position = helpers::position::get_position_by_id(&evm_provider, &vault_details).await?;
+
+        println!("Position: {:#?}", position);
+
+        // // try to burn all the liqudity of the vault
+        // helpers::vault::burn_all_liquidity(&evm_provider, &vault_details).await?;
+
+        // // Update the vault details
+        // helpers::vault::update_vault_current_position_data(&evm_provider, &mut vault_details)
+        //     .await?;
+
+        // println!("Updated Vault after burn liquidity : {:#?}", vault_details);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_rebalance() -> Result<()> {
         // load env vars
         dotenvy::dotenv().ok();
@@ -124,10 +199,11 @@ mod test {
             println!("Associating vault tokens...");
             helpers::vault::associate_vault_tokens(&evm_provider, &mut vault_details).await?;
             println!("Associated vault tokens.");
-        }
 
-        // Deposit only native hbar tokens
-        // helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 4.0, 0.0).await?;
+            // Deposit only native hbar tokens
+            helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 4.0, 0.0)
+                .await?;
+        }
 
         // Start strategy thta will get me the best tick range to put liq on
         let tick_range = strategies::basic::get_best_range(&vault_details).await?;
@@ -224,29 +300,81 @@ mod test {
         let swap_arg: PrepareSwapArgs;
 
         if exess0 < 0.0 {
+            let exact_amount_out = exess0.abs();
+            let parsed_exact_amount_out: U256 = parse_units(
+                exact_amount_out.to_string().as_str(),
+                vault_details.pool.token0.decimals,
+            )?
+            .into();
+            let max_amount_in: U256 = parse_units(
+                exess1.abs().to_string().as_str(),
+                vault_details.pool.token1.decimals,
+            )?
+            .into();
+
             swap_arg = PrepareSwapArgs {
-                exact_amount_out: exess0.abs(),
+                exact_amount_out,
+                parsed_exact_amount_out,
                 token_in: vault_details.pool.token1,
                 token_out: vault_details.pool.token0,
+                is_swap_0_to_1: false,
+                max_amount_in,
             };
         } else if exess1 < 0.0 {
+            let exact_amount_out = exess1.abs();
+            let parsed_exact_amount_out: U256 = parse_units(
+                exact_amount_out.to_string().as_str(),
+                vault_details.pool.token1.decimals,
+            )?
+            .into();
+            let max_amount_in: U256 = parse_units(
+                exess0.abs().to_string().as_str(),
+                vault_details.pool.token0.decimals,
+            )?
+            .into();
+
             swap_arg = PrepareSwapArgs {
-                exact_amount_out: exess1.abs(),
+                exact_amount_out,
+                parsed_exact_amount_out,
                 token_in: vault_details.pool.token0,
                 token_out: vault_details.pool.token1,
+                is_swap_0_to_1: true,
+                max_amount_in,
             };
         } else {
             // No need to swap
             swap_arg = PrepareSwapArgs {
                 exact_amount_out: 0.0,
+                parsed_exact_amount_out: U256::ZERO,
                 token_in: vault_details.pool.token0,
                 token_out: vault_details.pool.token1,
+                is_swap_0_to_1: true,
+                max_amount_in: U256::ZERO,
             };
         }
 
         println!("Swap arg: {:#?}", swap_arg);
 
         // TODO: call rebelance on the vault with new tick range and swap direction and amount
+        let vault_contract = YielderaVault::new(Address::from_str(contract_address)?, evm_provider);
+
+        let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+        let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+
+        let rebalnce_reciept = vault_contract
+            .rebalance(
+                lower_tick,
+                upper_tick,
+                swap_arg.parsed_exact_amount_out,
+                swap_arg.max_amount_in,
+                swap_arg.is_swap_0_to_1,
+            )
+            .send()
+            .await?
+            .get_receipt()
+            .await?;
+
+        println!("Rebalance reciept: {:#?}", rebalnce_reciept);
 
         Ok(())
     }
@@ -255,6 +383,9 @@ mod test {
 #[derive(Debug, Clone)]
 pub struct PrepareSwapArgs {
     pub exact_amount_out: f64,
+    pub parsed_exact_amount_out: U256,
     pub token_in: Token,
     pub token_out: Token,
+    pub is_swap_0_to_1: bool,
+    pub max_amount_in: U256,
 }

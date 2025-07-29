@@ -423,16 +423,13 @@ where
     let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
     let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
 
+    // hbar conversation rate
+    let value_to_send: U256 = parse_units("0.5", 18)?.into();
+
     let mint_tx = vault_contract
-        .mintLiquidity(
-            vault_address,
-            amount0_desired,
-            amount1_desired,
-            lower_tick,
-            upper_tick,
-            U256::MAX,
-        )
+        .mintLiquidity2(amount0_desired, amount1_desired, lower_tick, upper_tick)
         .gas(15_000_000)
+        .value(value_to_send)
         .send()
         .await?;
 
