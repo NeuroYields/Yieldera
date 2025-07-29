@@ -14,8 +14,15 @@ import "./libraries/TransferHelper.sol";
 import "./interfaces/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./interfaces/IWhbarHelper.sol";
+import "./interfaces/ISwapRouter.sol";
+import "./interfaces/callback/IUniswapV3MintCallback.sol";
 
-contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
+contract YielderaVault is
+    ERC20,
+    Ownable,
+    ReentrancyGuard,
+    IUniswapV3MintCallback
+{
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -29,6 +36,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         address(0x000000000000000000000000000000000013feE4);
     INonfungiblePositionManager constant NFPM =
         INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
+    ISwapRouter constant SWAP_ROUTER =
+        ISwapRouter(0x0000000000000000000000000000000000159398);
 
     // Immutable state variables
     address public immutable pool;
@@ -148,6 +157,16 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         IWhbarHelper(WHBAR_HELPER_ADDRESS).unwrapWhbar(amount);
     }
 
+    /// @notice Wrap the contract's whbar balance
+    function wrapHbar(uint256 amount) public payable onlyOwner {
+        uint256 hbarBlance = address(this).balance;
+
+        require(hbarBlance >= amount, "NOT_ENOUGH_HBAR");
+
+        // Wrap vault whbar
+        IWhbarHelper(WHBAR_HELPER_ADDRESS).deposit{value: amount}();
+    }
+
     /// @notice Deposit tokens into the vault
     /// @param deposit0 The amount of token0 to deposit
     /// @param deposit1 The amount of token1 to deposit
@@ -176,6 +195,8 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             if (isToken0Native) {
                 // Ensure msg.value is equal to deposit0
                 require(msg.value == deposit0, "INSUFF_HBAR");
+                // Wrap the token0 amount
+                wrapHbar(deposit0);
             } else {
                 TransferHelper.safeTransferFrom(
                     token0,
@@ -190,6 +211,7 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
             if (isToken1Native) {
                 // Ensure msg.value is equal  to deposit1
                 require(msg.value == deposit1, "INSUFF_HBAR");
+                wrapHbar(deposit1);
             } else {
                 TransferHelper.safeTransferFrom(
                     token1,
@@ -220,6 +242,101 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         } else {
             TransferHelper.safeTransfer(token, to, amount);
         }
+    }
+
+    /// @notice Rebelance the vault by withdrawing all liquidity and swapping it to the underlying tokens, then adding the new liquidity
+    /// @param newLowerTick The new lower tick of the range
+    /// @param newUpperTick The new upper tick of the range
+    /// @param desiredSwapOutAmount The amount of token0 or token1 to swap out
+    /// @param amountInMax The max amount of token0 or token1 to swap in
+    /// @param isSwap0To1 If the swap is from token0 to token1
+    function rebalance(
+        int24 newLowerTick,
+        int24 newUpperTick,
+        uint256 desiredSwapOutAmount,
+        uint256 amountInMax,
+        bool isSwap0To1
+    ) external onlyOwner nonReentrant {
+        // Withdraw all liquidity if there is a position
+        if (positionTokenId != 0) {
+            burnAllLiquidity();
+        }
+
+        // Check if the swap is needed
+        if (desiredSwapOutAmount > 0) {
+            // Swap using the swap router contract
+            if (isSwap0To1) {
+                if (isToken0Native) {
+                    // Wrap the token0 amount
+                    wrapHbar(amountInMax);
+                }
+
+                // Aprove the swap router to spend the token0
+                TransferHelper.safeApprove(
+                    token0,
+                    address(SWAP_ROUTER),
+                    amountInMax
+                );
+
+                // Swap token0 for token1
+                SWAP_ROUTER.exactOutputSingle(
+                    ISwapRouter.ExactOutputSingleParams({
+                        tokenIn: token0,
+                        tokenOut: token1,
+                        fee: fee,
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountOut: desiredSwapOutAmount,
+                        amountInMaximum: amountInMax,
+                        sqrtPriceLimitX96: 0
+                    })
+                );
+            } else {
+                if (isToken1Native) {
+                    // Wrap the token1 amount
+                    wrapHbar(amountInMax);
+                }
+
+                // Aprove the swap router to spend the token1
+                TransferHelper.safeApprove(
+                    token1,
+                    address(SWAP_ROUTER),
+                    amountInMax
+                );
+
+                // Swap token1 for token0
+                SWAP_ROUTER.exactOutputSingle(
+                    ISwapRouter.ExactOutputSingleParams({
+                        tokenIn: token1,
+                        tokenOut: token0,
+                        fee: fee,
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountOut: desiredSwapOutAmount,
+                        amountInMaximum: amountInMax,
+                        sqrtPriceLimitX96: 0
+                    })
+                );
+            }
+        }
+
+        // Fetch the new balances
+        uint256 balance0;
+        uint256 balance1;
+
+        if (isToken0Native) {
+            balance0 = address(this).balance;
+        } else {
+            balance0 = IERC20(token0).balanceOf(address(this));
+        }
+
+        if (isToken1Native) {
+            balance1 = address(this).balance;
+        } else {
+            balance1 = IERC20(token1).balanceOf(address(this));
+        }
+
+        // Add the new liquidity
     }
 
     /// @notice Mint a new Liquidity to the pool
@@ -342,13 +459,91 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
     }
 
+    /// @notice Mint a new Liquidity to the pool
+    /// @param amount0Max The maximum amount of token0 to deposit
+    /// @param amount1Max The maximum amount of token1 to deposit
+    /// @param tickLower The lower tick of the range
+    /// @param tickUpper The upper tick of the range
+    function mintLiquidity2(
+        uint256 amount0Max,
+        uint256 amount1Max,
+        int24 tickLower,
+        int24 tickUpper
+    )
+        external
+        payable
+        onlyOwner
+        returns (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        )
+    {
+        // Ensure vault has enough balance to execute this mint
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
+
+        require(balance0 >= amount0Max, "INSUFF_TOKEN0_BAL");
+        require(balance1 >= amount1Max, "INSUFF_TOKEN1_BAL");
+
+        // Ensure ticks are valid
+        require(
+            tickLower % tickSpacing == 0 && tickUpper % tickSpacing == 0,
+            "TICK_NO_MUL_OF_SPAC"
+        );
+
+        // 0.5 hbar fee by default
+        // uint256 valueToSend = 500000000000000000;
+        // 0.5 hbar fee by default with 8 decimals
+        uint256 valueToSend = 50_000_000;
+
+        require(
+            msg.value >= valueToSend,
+            string.concat(
+                "INSUFF_SENT_HBAR: Sendet hbar ",
+                Strings.toString(msg.value),
+                ", required ",
+                Strings.toString(valueToSend)
+            )
+        );
+
+        liquidity = _liquidityForAmounts(
+            tickLower,
+            tickUpper,
+            amount0Max,
+            amount1Max
+        );
+
+        (amount0, amount1) = IUniswapV3Pool(pool).mint{value: valueToSend}(
+            address(this),
+            tickLower,
+            tickUpper,
+            liquidity,
+            abi.encode(address(this))
+        );
+
+        // Refund any extra hbar sent
+        NFPM.refundETH();
+
+        // Update the lower and upper ticks of the vault
+        lowerTick = tickLower;
+        upperTick = tickUpper;
+        positionTokenId = tokenId;
+
+        emit MintLiquidity(msg.sender, tokenId, liquidity, amount0, amount1);
+    }
+
     /// @notice Burn all the liquidity from the pool
     function burnAllLiquidity()
-        external
+        public
         onlyOwner
         returns (uint256 amount0, uint256 amount1)
     {
-        require(upperTick != 0 && lowerTick != 0, "NO_LIQUIDITY");
+        require(
+            upperTick != 0 && lowerTick != 0 && positionTokenId != 0,
+            "NO_LIQUIDITY"
+        );
 
         /// Withdraw all liquidity and collect all fees from Uniswap pool
         (uint128 liquidity, uint256 fees0, uint256 fees1) = currentPosition();
@@ -522,6 +717,58 @@ contract YielderaVault is ERC20, Ownable, ReentrancyGuard {
         (, , , , , liquidity, , , tokensOwed0, tokensOwed1) = NFPM.positions(
             positionTokenId
         );
+    }
+
+    /**
+     @notice Calculates amount of liquidity in a position for given token0 and token1 amounts
+     @param tickLower The lower tick of the liquidity position
+     @param tickUpper The upper tick of the liquidity position
+     @param amount0 token0 amount
+     @param amount1 token1 amount
+     */
+    function _liquidityForAmounts(
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 amount0,
+        uint256 amount1
+    ) internal view returns (uint128) {
+        (uint160 sqrtRatioX96, , , , , , ) = IUniswapV3Pool(pool).slot0();
+        return
+            UV3Math.getLiquidityForAmounts(
+                sqrtRatioX96,
+                UV3Math.getSqrtRatioAtTick(tickLower),
+                UV3Math.getSqrtRatioAtTick(tickUpper),
+                amount0,
+                amount1
+            );
+    }
+
+    /**
+     @notice Callback function for mint
+     @dev this is where the payer transfers required token0 and token1 amounts
+     @param amount0 required amount of token0
+     @param amount1 required amount of token1
+     @param data encoded payer's address
+     */
+    function uniswapV3MintCallback(
+        uint256 amount0,
+        uint256 amount1,
+        bytes calldata data
+    ) external override {
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+
+        require(msg.sender == address(pool), "cb1");
+        address payer = abi.decode(data, (address));
+
+        if (payer == address(this)) {
+            if (amount0 > 0) IERC20(token0).safeTransfer(msg.sender, amount0);
+            if (amount1 > 0) IERC20(token1).safeTransfer(msg.sender, amount1);
+        } else {
+            if (amount0 > 0)
+                IERC20(token0).safeTransferFrom(payer, msg.sender, amount0);
+            if (amount1 > 0)
+                IERC20(token1).safeTransferFrom(payer, msg.sender, amount1);
+        }
     }
 
     ///@notice function that makes the contract accespst native transfers
