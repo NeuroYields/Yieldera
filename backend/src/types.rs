@@ -11,7 +11,6 @@ pub struct Vaultdetails {
     pub total_supply: f64,
     pub lower_tick: i32,
     pub upper_tick: i32,
-    pub position_token_id: U256,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

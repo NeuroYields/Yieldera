@@ -106,8 +106,6 @@ where
     let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
     let price0 = 1.0 / price1;
 
-    let position_token_id = vault.positionTokenId().call().await?;
-
     Ok(Vaultdetails {
         address: vault_address.to_string(),
         pool: Pool {
@@ -139,7 +137,6 @@ where
         total_supply,
         lower_tick,
         upper_tick,
-        position_token_id,
     })
 }
 
@@ -156,11 +153,9 @@ where
 
     let lower_tick = vault_contract.lowerTick().call().await?;
     let upper_tick = vault_contract.upperTick().call().await?;
-    let position_token_id = vault_contract.positionTokenId().call().await?;
 
     vault.lower_tick = lower_tick.as_i32();
     vault.upper_tick = upper_tick.as_i32();
-    vault.position_token_id = position_token_id;
 
     Ok(())
 }
@@ -333,63 +328,6 @@ where
     Ok(())
 }
 
-pub async fn mint_liquidity<P>(
-    provider: &P,
-    vault: &Vaultdetails,
-    lower_tick: i32,
-    upper_tick: i32,
-    amount0_desired: f64,
-    amount1_desired: f64,
-) -> Result<()>
-where
-    P: Provider + WalletProvider,
-{
-    let vault_address = Address::from_str(vault.address.as_str())?;
-
-    let vault_contract = YielderaVault::new(vault_address, provider);
-
-    let amount0_desired: U256 = parse_units(
-        amount0_desired.to_string().as_str(),
-        vault.pool.token0.decimals,
-    )?
-    .into();
-    let amount1_desired: U256 = parse_units(
-        amount1_desired.to_string().as_str(),
-        vault.pool.token1.decimals,
-    )?
-    .into();
-
-    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
-    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
-
-    let mint_tx = vault_contract
-        .mintLiquidity(
-            provider.default_signer_address(),
-            amount0_desired,
-            amount1_desired,
-            lower_tick,
-            upper_tick,
-            U256::MAX,
-        )
-        .gas(15_000_000)
-        .send()
-        .await?;
-
-    let mint_receipt = mint_tx.get_receipt().await?;
-
-    let mint_tx_hash = mint_receipt.transaction_hash;
-    let mint_status = mint_receipt.status();
-
-    println!("Mint transaction hash: {}", mint_tx_hash);
-    println!("Mint transaction status: {}", mint_status);
-
-    if !mint_status {
-        return Err(color_eyre::eyre::eyre!("Mint transaction failed"));
-    }
-
-    Ok(())
-}
-
 pub async fn mint_liquidity_from_amount0<P>(
     provider: &P,
     vault: &Vaultdetails,
@@ -427,7 +365,7 @@ where
     let value_to_send: U256 = parse_units("0.5", 18)?.into();
 
     let mint_tx = vault_contract
-        .mintLiquidity2(amount0_desired, amount1_desired, lower_tick, upper_tick)
+        .mintLiquidity(amount0_desired, amount1_desired, lower_tick, upper_tick)
         .gas(15_000_000)
         .value(value_to_send)
         .send()
@@ -455,7 +393,7 @@ pub async fn burn_all_liquidity<P>(provider: &P, vault: &Vaultdetails) -> Result
 where
     P: Provider + WalletProvider,
 {
-    if vault.position_token_id == U256::ZERO {
+    if vault.lower_tick == 0 && vault.upper_tick == 0 {
         println!("Skiiping burning liquidity as there is no liquidity to burn");
         return Ok(());
     }

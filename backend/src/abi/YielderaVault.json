@@ -125,26 +125,21 @@
     },
     {
         "type": "function",
-        "name": "currentPosition",
+        "name": "collectFees",
         "inputs": [],
         "outputs": [
             {
-                "name": "liquidity",
-                "type": "uint128",
-                "internalType": "uint128"
+                "name": "fees0",
+                "type": "uint256",
+                "internalType": "uint256"
             },
             {
-                "name": "tokensOwed0",
-                "type": "uint128",
-                "internalType": "uint128"
-            },
-            {
-                "name": "tokensOwed1",
-                "type": "uint128",
-                "internalType": "uint128"
+                "name": "fees1",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
-        "stateMutability": "view"
+        "stateMutability": "nonpayable"
     },
     {
         "type": "function",
@@ -216,122 +211,23 @@
     },
     {
         "type": "function",
-        "name": "getCurrentPosition",
+        "name": "getBasePosition",
         "inputs": [],
         "outputs": [
             {
-                "name": "token0_p",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "token1_p",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "fee_p",
-                "type": "uint24",
-                "internalType": "uint24"
-            },
-            {
-                "name": "tickLower",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
-                "name": "tickUpper",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
                 "name": "liquidity",
                 "type": "uint128",
                 "internalType": "uint128"
             },
             {
-                "name": "feeGrowthInside0LastX128",
+                "name": "amount0",
                 "type": "uint256",
                 "internalType": "uint256"
             },
             {
-                "name": "feeGrowthInside1LastX128",
+                "name": "amount1",
                 "type": "uint256",
                 "internalType": "uint256"
-            },
-            {
-                "name": "tokensOwed0",
-                "type": "uint128",
-                "internalType": "uint128"
-            },
-            {
-                "name": "tokensOwed1",
-                "type": "uint128",
-                "internalType": "uint128"
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
-        "name": "getPositionById",
-        "inputs": [
-            {
-                "name": "tokenSN",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "token0_p",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "token1_p",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "fee_p",
-                "type": "uint24",
-                "internalType": "uint24"
-            },
-            {
-                "name": "tickLower",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
-                "name": "tickUpper",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
-                "name": "liquidity",
-                "type": "uint128",
-                "internalType": "uint128"
-            },
-            {
-                "name": "feeGrowthInside0LastX128",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "feeGrowthInside1LastX128",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "tokensOwed0",
-                "type": "uint128",
-                "internalType": "uint128"
-            },
-            {
-                "name": "tokensOwed1",
-                "type": "uint128",
-                "internalType": "uint128"
             }
         ],
         "stateMutability": "view"
@@ -380,65 +276,6 @@
         "name": "mintLiquidity",
         "inputs": [
             {
-                "name": "to",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "amount0Max",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "amount1Max",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "tickLower",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
-                "name": "tickUpper",
-                "type": "int24",
-                "internalType": "int24"
-            },
-            {
-                "name": "deadline",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "tokenId",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "liquidity",
-                "type": "uint128",
-                "internalType": "uint128"
-            },
-            {
-                "name": "amount0",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "amount1",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "stateMutability": "nonpayable"
-    },
-    {
-        "type": "function",
-        "name": "mintLiquidity2",
-        "inputs": [
-            {
                 "name": "amount0Max",
                 "type": "uint256",
                 "internalType": "uint256"
@@ -460,11 +297,6 @@
             }
         ],
         "outputs": [
-            {
-                "name": "tokenId",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
             {
                 "name": "liquidity",
                 "type": "uint128",
@@ -524,19 +356,6 @@
     },
     {
         "type": "function",
-        "name": "positionTokenId",
-        "inputs": [],
-        "outputs": [
-            {
-                "name": "",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
         "name": "rebalance",
         "inputs": [
             {
@@ -572,6 +391,24 @@
         "type": "function",
         "name": "renounceOwnership",
         "inputs": [],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "sweep",
+        "inputs": [
+            {
+                "name": "token",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
         "outputs": [],
         "stateMutability": "nonpayable"
     },
@@ -878,6 +715,31 @@
             },
             {
                 "name": "amount1",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "CollectFees",
+        "inputs": [
+            {
+                "name": "sender",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "fees0",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "fees1",
                 "type": "uint256",
                 "indexed": false,
                 "internalType": "uint256"

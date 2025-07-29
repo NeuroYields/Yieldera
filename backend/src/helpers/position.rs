@@ -45,30 +45,3 @@ sol!(
         );
     }
 );
-
-pub async fn get_position_by_id<P>(provider: &P, vault: &Vaultdetails) -> Result<Position>
-where
-    P: Provider + WalletProvider,
-{
-    let nfmp_address = Address::from_str(NON_FUNGIBLE_POSITION_MANAGER_ADDRESS)?;
-
-    let nfmp = INonfungiblePositionManager::new(nfmp_address, provider);
-
-    let position = nfmp.positions(vault.position_token_id).call().await?;
-
-    let fee: f64 = position.fee.into();
-
-    Ok(Position {
-        id: vault.position_token_id,
-        token0: position.token0,
-        token1: position.token1,
-        fee: fee as u32,
-        tick_lower: position.tickLower.as_i32(),
-        tick_upper: position.tickUpper.as_i32(),
-        liquidity: position.liquidity,
-        fee_growth_inside0_last_x128: position.feeGrowthInside0LastX128,
-        fee_growth_inside1_last_x128: position.feeGrowthInside1LastX128,
-        tokens_owed0: position.tokensOwed0,
-        tokens_owed1: position.tokensOwed1,
-    })
-}
