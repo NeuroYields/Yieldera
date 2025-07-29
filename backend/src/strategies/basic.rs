@@ -4,11 +4,11 @@
 
 use crate::{
     helpers,
-    types::{TickRange, Vaultdetails},
+    types::{TickRange, VaultDetails},
 };
 use color_eyre::eyre::Result;
 
-pub async fn get_best_range(vault: &Vaultdetails) -> Result<TickRange> {
+pub async fn get_best_range(vault: &VaultDetails) -> Result<TickRange> {
     let current_price = vault.pool.price1;
     let pool_tick_spacing = vault.pool.tick_spacing;
 

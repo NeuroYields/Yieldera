@@ -9,7 +9,7 @@ use color_eyre::eyre::Result;
 
 use crate::{
     config::NON_FUNGIBLE_POSITION_MANAGER_ADDRESS,
-    types::{Position, Vaultdetails},
+    types::{Position, VaultDetails},
 };
 
 sol!(

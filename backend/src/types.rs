@@ -1,8 +1,37 @@
+use actix_web::web;
 use alloy::primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Vaultdetails {
+use crate::state::AppState;
+
+pub type EvmProvider = alloy::providers::fillers::FillProvider<
+    alloy::providers::fillers::JoinFill<
+        alloy::providers::fillers::JoinFill<
+            alloy::providers::fillers::JoinFill<
+                alloy::providers::Identity,
+                alloy::providers::fillers::JoinFill<
+                    alloy::providers::fillers::GasFiller,
+                    alloy::providers::fillers::JoinFill<
+                        alloy::providers::fillers::BlobGasFiller,
+                        alloy::providers::fillers::JoinFill<
+                            alloy::providers::fillers::NonceFiller,
+                            alloy::providers::fillers::ChainIdFiller,
+                        >,
+                    >,
+                >,
+            >,
+            alloy::providers::fillers::ChainIdFiller,
+        >,
+        alloy::providers::fillers::WalletFiller<alloy::network::EthereumWallet>,
+    >,
+    alloy::providers::RootProvider,
+>;
+
+pub type WebAppState = web::Data<AppState>;
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct VaultDetails {
     pub address: String,
     pub pool: Pool,
     pub name: String,
@@ -11,9 +40,10 @@ pub struct Vaultdetails {
     pub total_supply: f64,
     pub lower_tick: i32,
     pub upper_tick: i32,
+    pub is_active: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Pool {
     pub address: String,
     pub token0: Token,
@@ -21,12 +51,13 @@ pub struct Pool {
     pub fee: f64,
     pub tick_spacing: i32,
     pub current_tick: i32,
+    #[schema(value_type = String)]
     pub sqrt_price_x96: U256,
     pub price1: f64,
     pub price0: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Token {
     pub address: String,
     pub name: String,
@@ -83,4 +114,9 @@ pub struct TomlConfig {
     pub non_fungible_position_manager_address: String,
     pub hbar_evm_address: String,
     pub vaults: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct AdminAssociateVaultTokensRequest {
+    pub vault_address: String,
 }

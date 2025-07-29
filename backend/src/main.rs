@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod core;
 mod helpers;
 mod state;
 mod strategies;
@@ -17,6 +18,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     config::{CHAIN_ID, CONFIG, IS_NEW_CONTRACT, RPC_URL},
+    core::init::{init_all_vaults, init_evm_provider},
     state::AppState,
     types::Token,
 };
@@ -52,6 +54,11 @@ async fn main() -> std::io::Result<()> {
 
     info!("Config: {:?}", *CONFIG);
 
+    // Init evm provider
+    let evm_provider = init_evm_provider().await.unwrap();
+    // Init all vaults and store them in the app state
+    init_all_vaults(&evm_provider, &app_state).await.unwrap();
+
     // Start the http server
     info!("Starting Http Server at http://127.0.0.1:8080");
     info!("Starting SWAGGER Server at http://127.0.0.1:8080/swagger-ui/");
@@ -62,6 +69,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::clone(&app_state))
             .service(api::get_index_service)
             .service(api::get_health_service)
+            .service(api::handle_get_all_vaults)
+            .service(api::handle_admin_associate_vault_tokens)
             .split_for_parts();
 
         app.service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", app_api))
