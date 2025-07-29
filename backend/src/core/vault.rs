@@ -79,6 +79,7 @@ where
     let lower_tick = vault.lowerTick().call().await?.as_i32();
     let upper_tick = vault.upperTick().call().await?.as_i32();
     let is_active = vault.isActive().call().await?;
+    let is_vault_tokens_associated = vault.isVaultTokensAssociated().call().await?;
 
     // Ftehcing sqrt and tick of the pool
     let slot0 = UniswapV3Pool::new(pool_address, provider)
@@ -142,5 +143,6 @@ where
         lower_tick,
         upper_tick,
         is_active,
+        is_vault_tokens_associated,
     })
 }

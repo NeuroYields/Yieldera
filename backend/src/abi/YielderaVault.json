@@ -286,6 +286,19 @@
     },
     {
         "type": "function",
+        "name": "isVaultTokensAssociated",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bool",
+                "internalType": "bool"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "lowerTick",
         "inputs": [],
         "outputs": [

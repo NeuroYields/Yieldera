@@ -41,6 +41,7 @@ pub struct VaultDetails {
     pub lower_tick: i32,
     pub upper_tick: i32,
     pub is_active: bool,
+    pub is_vault_tokens_associated: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
