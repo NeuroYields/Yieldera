@@ -2,7 +2,6 @@ use std::fs;
 
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 
 use crate::types::TomlConfig;
 

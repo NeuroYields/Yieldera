@@ -1,13 +1,8 @@
 use std::str::FromStr;
 
 use alloy::{
-    primitives::{
-        Address, U256,
-        aliases::I24,
-        utils::{format_units, parse_units},
-    },
+    primitives::{Address, U256, utils::format_units},
     providers::{Provider, WalletProvider},
-    rpc::types::TransactionReceipt,
     sol,
 };
 use color_eyre::eyre::Result;
@@ -15,7 +10,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{CONFIG, FEE_FACTOR},
     helpers,
-    types::{Pool, Token, VaultDetails, VaultTokenBalances},
+    types::{Pool, Token, VaultDetails},
 };
 
 sol!(

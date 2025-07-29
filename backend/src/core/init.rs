@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use alloy::{
-    providers::{Provider, ProviderBuilder, WalletProvider},
-    signers::local::PrivateKeySigner,
-};
+use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner};
 
 use color_eyre::eyre::Result;
 use tracing::info;
@@ -11,7 +8,7 @@ use tracing::info;
 use crate::{
     config::CONFIG,
     core,
-    types::{EvmProvider, VaultDetails, WebAppState},
+    types::{EvmProvider, WebAppState},
 };
 
 pub async fn init_evm_provider() -> Result<EvmProvider> {
