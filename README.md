@@ -102,10 +102,10 @@ forge build
 forge test
 
 # Deploy contracts (testnet)
-forge script script/DeployYielderaVault.s.sol --rpc-url hedera_testnet --broadcast --verify
+forge script script/DeployYielderaVault.s.sol --rpc-url hedera_testnet --broadcast --verify --verifier sourcify --verifier-url https://server-verify.hashscan.io
 
 # Deploy contracts (mainnet)
-forge script script/DeployYielderaVault.s.sol --rpc-url https://mainnet.hashio.io/api --broadcast --verify
+forge script script/DeployYielderaVault.s.sol --rpc-url https://mainnet.hashio.io/api --broadcast --verify --verifier sourcify --verifier-url https://server-verify.hashscan.io
 ```
 
 ### 2. Backend Setup
