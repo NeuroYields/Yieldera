@@ -31,7 +31,8 @@ pub async fn init_evm_provider() -> Result<EvmProvider> {
     Ok(evm_provider)
 }
 
-pub async fn init_all_vaults(provider: &EvmProvider, app_state: &WebAppState) -> Result<()> {
+pub async fn init_all_vaults(app_state: &WebAppState) -> Result<()> {
+    let provider = &app_state.evm_provider;
     let all_vaults_addresses = CONFIG.toml_config.vaults.clone();
     let all_vaults = &app_state.all_vaults;
 

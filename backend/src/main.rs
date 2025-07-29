@@ -6,22 +6,14 @@ mod state;
 mod strategies;
 mod types;
 
-use std::str::FromStr;
-
 use actix_web::{App, HttpServer, web};
-use alloy::{primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
-use color_eyre::eyre::Result;
-use tracing::{debug, error, info};
+
+use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa_actix_web::AppExt;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{
-    config::{CHAIN_ID, CONFIG, IS_NEW_CONTRACT, RPC_URL},
-    core::init::{init_all_vaults, init_evm_provider},
-    state::AppState,
-    types::Token,
-};
+use crate::{config::CONFIG, core::init::init_all_vaults, state::AppState};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -50,14 +42,12 @@ async fn main() -> std::io::Result<()> {
     info!("Logger initialized Successfully");
 
     // Initalize empty state
-    let app_state = web::Data::new(AppState::new());
+    let app_state = web::Data::new(AppState::new().await);
 
     info!("Config: {:?}", *CONFIG);
 
-    // Init evm provider
-    let evm_provider = init_evm_provider().await.unwrap();
     // Init all vaults and store them in the app state
-    init_all_vaults(&evm_provider, &app_state).await.unwrap();
+    init_all_vaults(&app_state).await.unwrap();
 
     // Start the http server
     info!("Starting Http Server at http://127.0.0.1:8080");
@@ -82,6 +72,7 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod test {
+
     use alloy::{
         primitives::{
             Address,
@@ -90,13 +81,18 @@ mod test {
         },
         providers::WalletProvider,
     };
+    use std::str::FromStr;
 
     use crate::{
-        helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault},
+        config::{CHAIN_ID, IS_NEW_CONTRACT, RPC_URL},
+        helpers::vault::YielderaVault,
         types::PrepareSwapArgs,
     };
 
     use super::*;
+    use alloy::{primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
+
+    use color_eyre::eyre::Result;
 
     #[tokio::test]
     async fn test_mint_burn_without_native_coin() -> Result<()> {

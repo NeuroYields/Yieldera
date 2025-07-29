@@ -1,7 +1,6 @@
 use actix_web::{HttpResponse, Responder, get, post, web};
 
 use crate::{
-    config::CONFIG,
     state::AppState,
     types::{AdminAssociateVaultTokensRequest, VaultDetails},
 };
