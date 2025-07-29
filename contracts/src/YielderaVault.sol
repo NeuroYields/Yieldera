@@ -56,6 +56,7 @@ contract YielderaVault is
     int24 public upperTick;
     int24 public lowerTick;
     bool public isActive;
+    uint24 public performanceFee;
 
     // Events
     event Deposit(
@@ -235,11 +236,7 @@ contract YielderaVault is
     /// @param token The token to withdraw
     /// @param amount The amount to withdraw
     /// @param to The address to receive the tokens
-    function withdraw(
-        address token,
-        uint256 amount,
-        address to
-    ) external onlyOwner {
+    function withdraw(address token, uint256 amount, address to) external {
         require(token == token0 || token == token1, "INVALID_TOKEN");
         require(to != NULL_ADDRESS, "NULL_TO");
 
@@ -412,6 +409,12 @@ contract YielderaVault is
         isActive = false;
 
         emit BurnAllLiquidity(msg.sender, amount0, amount1);
+    }
+
+    /// @notice Set a new peroformence fee
+    /// @param _performanceFee The new performance fee
+    function setPerformanceFee(uint24 _performanceFee) external onlyOwner {
+        performanceFee = _performanceFee;
     }
 
     /**
