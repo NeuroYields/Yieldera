@@ -8,7 +8,6 @@ use crate::types::TomlConfig;
 pub const RPC_URL: &str = "https://testnet.hashio.io/api";
 pub const CHAIN_ID: u64 = 296;
 pub const HBAR_EVM_ADDRESS: &str = "0x0000000000000000000000000000000000003ad2";
-pub const FEE_FACTOR: f64 = 10_000.0;
 pub const NON_FUNGIBLE_POSITION_MANAGER_ADDRESS: &str =
     "0x000000000000000000000000000000000013f618";
 pub const YIELDERA_CONTRACT_ADDRESS: &str = "0xF022E0BC858E3D3aFE60fcEBc91A9fc80f7D29E8";
@@ -57,3 +56,7 @@ impl Config {
 
 // Define a globally accessible static Config instance
 pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
+
+// Other constants
+pub const FEE_FACTOR: f64 = 10_000.0;
+pub const MONITOR_VAULT_INTERVAL_SECONDS: u64 = 60 * 60; // 1 hour in seconds

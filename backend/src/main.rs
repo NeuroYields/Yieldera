@@ -222,7 +222,6 @@ mod test {
         let current_tick = tick_range.curent_tick;
 
         // Get the ratio fo miniting liquidity
-
         let lower_tick_sqrt_price =
             helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(lower_tick)?;
         let upper_tick_sqrt_price =
