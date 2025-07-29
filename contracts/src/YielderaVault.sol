@@ -29,6 +29,8 @@ contract YielderaVault is
     using SafeCast for uint256;
 
     // Constants
+    uint256 public constant PRECISION = 10 ** 18;
+    uint256 constant PERCENT = 100;
     address constant NULL_ADDRESS = address(0);
     address constant WHBAR_ADDRESS =
         address(0x0000000000000000000000000000000000003aD2);
@@ -45,6 +47,7 @@ contract YielderaVault is
 
     // Immutable state variables
     address public immutable pool;
+    IUniswapV3Pool public immutable poolContract;
     address public immutable token0;
     address public immutable token1;
     uint24 public immutable fee;
@@ -56,7 +59,9 @@ contract YielderaVault is
     int24 public upperTick;
     int24 public lowerTick;
     bool public isActive;
-    uint24 public performanceFee;
+    uint24 public performanceFee = 10;
+    uint256 public vaultFees0 = 0;
+    uint256 public vaultFees1 = 0;
 
     // Events
     event Deposit(
@@ -126,10 +131,12 @@ contract YielderaVault is
         require(_pool != NULL_ADDRESS, "NULL_POOL");
 
         pool = _pool;
-        token0 = IUniswapV3Pool(_pool).token0();
-        token1 = IUniswapV3Pool(_pool).token1();
-        fee = IUniswapV3Pool(_pool).fee();
-        tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
+        poolContract = IUniswapV3Pool(_pool);
+
+        token0 = poolContract.token0();
+        token1 = poolContract.token1();
+        fee = poolContract.fee();
+        tickSpacing = poolContract.tickSpacing();
 
         isToken0Native = token0 == WHBAR_ADDRESS;
         isToken1Native = token1 == WHBAR_ADDRESS;
@@ -174,6 +181,25 @@ contract YielderaVault is
         IWhbarHelper(WHBAR_HELPER_ADDRESS).deposit{value: amount}();
     }
 
+    /**
+     @notice Calculates total quantity of token0 and token1 in the current position (and unused in the ICHIVault)
+     @param total0 Quantity of token0 in current position (and unused in the ICHIVault)
+     @param total1 Quantity of token1 in current position (and unused in the ICHIVault)
+     */
+    function getTotalAmounts()
+        public
+        view
+        returns (uint256 total0, uint256 total1)
+    {
+        (, uint256 pos0, uint256 pos1) = getCurrentPosition();
+
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
+
+        total0 = balance0 + pos0;
+        total1 = balance1 + pos1;
+    }
+
     /// @notice Deposit tokens into the vault
     /// @param deposit0 The amount of token0 to deposit
     /// @param deposit1 The amount of token1 to deposit
@@ -189,13 +215,24 @@ contract YielderaVault is
         // Ensure to is valdi address
         require(to != NULL_ADDRESS, "NULL_TO");
 
+        // Collect vault fees of current position
+        _collectPositionFees();
+
         // Get the current spot price
         uint256 spotPrice = _fetchPoolSpotPrice(
             token0,
             token1,
             currentTick(),
-            deposit0
+            PRECISION
         );
+
+        (uint256 pool0, uint256 pool1) = getTotalAmounts();
+
+        // aggregated deposit
+        uint256 deposit0PricedInToken1 = (deposit0 * spotPrice) / PRECISION;
+
+        // shares = deposit1 + deposit0PricedInToken1
+        shares = deposit1 + deposit0PricedInToken1;
 
         // Transfer the tokens to the vault
         if (deposit0 > 0) {
@@ -229,22 +266,68 @@ contract YielderaVault is
             }
         }
 
-        shares = 0;
+        uint256 totalSupply = totalSupply();
+
+        if (totalSupply != 0) {
+            uint256 pool0PricedInToken1 = (pool0 * spotPrice) / PRECISION;
+            shares = (shares * totalSupply) / (pool0PricedInToken1 + pool1);
+        }
+
+        // mint shares to the depositor
+        _mint(to, shares);
+
+        // Emit deposit event
+        emit Deposit(msg.sender, to, shares, deposit0, deposit1);
     }
 
-    /// @notice allow the owner to withdraw tokens from the vault
-    /// @param token The token to withdraw
-    /// @param amount The amount to withdraw
-    /// @param to The address to receive the tokens
-    function withdraw(address token, uint256 amount, address to) external {
-        require(token == token0 || token == token1, "INVALID_TOKEN");
+    /// @notice allow a user to withdraw its shares
+    /// @param shares The amount of shares to withdraw
+    /// @param to The address to receive the shares
+    function withdraw(
+        uint256 shares,
+        address to
+    ) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        require(shares > 0, "ZERO_SHARES");
         require(to != NULL_ADDRESS, "NULL_TO");
 
-        if (token == WHBAR_ADDRESS) {
-            TransferHelper.safeTransferHBAR(to, amount);
-        } else {
-            TransferHelper.safeTransfer(token, to, amount);
+        uint256 senderShareBalance = balanceOf(msg.sender);
+
+        require(senderShareBalance >= shares, "INSUFF_SHARES_BAL");
+
+        // Withdraw the user liquiidity shares friom the current position and burn them
+        (uint256 pos0, uint256 pos1) = _burnLiquidity(
+            lowerTick,
+            upperTick,
+            _liquidityForShares(lowerTick, upperTick, shares),
+            to,
+            false
+        );
+
+        // Push tokens proportional to unused balances
+        uint256 _totalSupply = totalSupply();
+
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
+
+        uint256 unused0 = (balance0 * shares) / _totalSupply;
+        uint256 unused1 = (balance1 * shares) / _totalSupply;
+
+        // Transfer unused tokens to the user
+        if (unused0 > 0) {
+            IERC20(token0).safeTransfer(to, unused0);
         }
+
+        if (unused1 > 0) {
+            IERC20(token1).safeTransfer(to, unused1);
+        }
+
+        amount0 = unused0 + pos0;
+        amount1 = unused1 + pos1;
+
+        // Burn the shares from the total supply
+        _burn(msg.sender, shares);
+
+        emit Withdraw(msg.sender, to, shares, amount0, amount1);
     }
 
     /// @notice Rebelance the vault by withdrawing all liquidity and swapping it to the underlying tokens, then adding the new liquidity
@@ -411,10 +494,18 @@ contract YielderaVault is
         emit BurnAllLiquidity(msg.sender, amount0, amount1);
     }
 
-    /// @notice Set a new peroformence fee
-    /// @param _performanceFee The new performance fee
-    function setPerformanceFee(uint24 _performanceFee) external onlyOwner {
-        performanceFee = _performanceFee;
+    /// @notice allow the owner to withdraw Native Coin from the vault
+    /// @param amount The amount to withdraw
+    /// @param to The address to receive the tokens
+    function withdrawNative(uint256 amount, address to) external onlyOwner {
+        require(to != NULL_ADDRESS, "NULL_TO");
+
+        // withdraw native token
+        if (amount > 0) {
+            uint256 balance = address(this).balance;
+            require(balance >= amount, "WITHDRAW_NATIVE: INSUFF_BAL");
+            TransferHelper.safeTransferHBAR(to, amount);
+        }
     }
 
     /**
@@ -432,12 +523,19 @@ contract YielderaVault is
      * @param to The address where the tokens should be transferred.
      */
     function sweep(address token, address to) external onlyOwner {
-        require(token != token0 && token != token1, "IV.sweep: VT not allowed"); // do not allow sweeping of either vault token
+        // Do not allow sweeping of either vault token
+        require(token != token0 && token != token1, "SWEEP: VT_NOT_ALLOWED");
         uint256 amount = IERC20(token).balanceOf(address(this));
 
         if (amount > 0) {
             IERC20(token).safeTransfer(to, amount);
         }
+    }
+
+    /// @notice Set a new peroformence fee
+    /// @param _performanceFee The new performance fee
+    function setPerformanceFee(uint24 _performanceFee) external onlyOwner {
+        performanceFee = _performanceFee;
     }
 
     /*////////////////////////////////////////////////// 
@@ -482,6 +580,31 @@ contract YielderaVault is
     /*//////////////////////////////////////////////////////////////
                                INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Update vault fees by collecting fees of the positions
+    function _collectPositionFees() internal returns (uint128 liquidity) {
+        // Get current position
+        (liquidity, , ) = _position(lowerTick, upperTick);
+        // Check if there is any liquidity in the position.
+        // If so, call burn with amount = 0 to realize and update uncollected fees.
+        // This does NOT remove any liquidity, but updates fee growth for the position
+        // so that the correct amount can be collected via `collect()`.
+        if (liquidity > 0) {
+            poolContract.burn(lowerTick, upperTick, 0);
+            // Collect fees owed of the position
+            (uint256 owed0, uint256 owed1) = poolContract.collect(
+                address(this),
+                lowerTick,
+                upperTick,
+                type(uint128).max,
+                type(uint128).max
+            );
+
+            // Update vault fees
+            vaultFees0 += owed0;
+            vaultFees1 += owed1;
+        }
+    }
 
     /// @notice returns equivalent _tokenOut for _amountIn, _tokenIn using spot price
     /// @param _tokenIn  token the input amount is in
@@ -540,8 +663,6 @@ contract YielderaVault is
         uint256 amount1,
         bytes calldata data
     ) external override {
-        uint256 balance0 = IERC20(token0).balanceOf(address(this));
-
         require(msg.sender == address(pool), "cb1");
         address payer = abi.decode(data, (address));
 
@@ -604,24 +725,6 @@ contract YielderaVault is
                 abi.encode(address(this))
             );
         }
-    }
-
-    /**
-     @notice Sends portion of swap fees to feeRecipient and affiliate.
-     @param fees0 fees for token0
-     @param fees1 fees for token1
-     */
-    function _distributeFees(uint256 fees0, uint256 fees1) internal {
-        //TODO: distribute fees
-        // UV3Math.distributeFees(
-        //     ichiVaultFactory,
-        //     token0,
-        //     token1,
-        //     affiliate,
-        //     ammFeeRecipient,
-        //     fees0,
-        //     fees1
-        // );
     }
 
     /**
