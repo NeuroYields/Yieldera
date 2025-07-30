@@ -262,9 +262,11 @@ pub async fn rebalance_vault(
 
     let vault_address = vault_details.address.as_str();
 
+    // Reint evm provider to ensure it has teh latest nonce
+    let evm_provider = core::init::init_evm_provider().await?;
+
     // call rebelance on the vault with new tick range and swap direction and amount
-    let vault_contract =
-        YielderaVault::new(Address::from_str(vault_address)?, &app_state.evm_provider);
+    let vault_contract = YielderaVault::new(Address::from_str(vault_address)?, &evm_provider);
 
     let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
     let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
