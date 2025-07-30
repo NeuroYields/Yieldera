@@ -12,7 +12,7 @@ use alloy::primitives::{
     aliases::I24,
     utils::{format_units, parse_units},
 };
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
 use tracing::{debug, error, info, warn};
 
 pub async fn start_vault_liq_management(vault_address: &str, app_state: WebAppState) -> Result<()> {
@@ -22,7 +22,6 @@ pub async fn start_vault_liq_management(vault_address: &str, app_state: WebAppSt
     );
 
     // for each MONITOR_VAULT_INTERVAL_SECONDS, check if we need to rebalance the vault
-
     loop {
         // Implement the logic to rebalance the vault
         match start_rebalance_strategy(vault_address, &app_state).await {
@@ -38,8 +37,21 @@ pub async fn start_vault_liq_management(vault_address: &str, app_state: WebAppSt
                     vault_address, e
                 );
 
-                // TODO: send an alert email to the admin and retry in the next iteration
-                // send_alert_email(e).await?;
+                // Init the email
+                let mailer = core::email::init_mailer()
+                    .await
+                    .context("Failed to initialize mailer")?;
+
+                // send an alert email
+                core::email::send_email_notification(
+                    "Yieldera Vault Rebalance Alert",
+                    format!(
+                        "Vault {} Rebalance failed to rebalance with error: \n{:?}",
+                        vault_address, e
+                    ),
+                    &mailer,
+                )
+                .await?;
             }
         };
 
@@ -82,7 +94,13 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
             vault_address
         );
 
-        // TODO: Estimate balances after removing the existant liquidity by calling getCurrent position, then call the rebalance function
+        // TEST ERROR
+        // return Err(color_eyre::eyre::eyre!(
+        //     "Vault {} already has a position. Send TEST ERROR",
+        //     vault_address
+        // ));
+
+        // Estimate balances after removing the existant liquidity by calling getCurrent position, then call the rebalance function
         let vault_contract = YielderaVault::new(
             Address::from_str(vault_details.address.as_str())?,
             &app_state.evm_provider,

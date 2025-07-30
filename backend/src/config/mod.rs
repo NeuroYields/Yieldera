@@ -18,7 +18,10 @@ pub struct Config {
     pub private_key: String,
     pub is_mainnet: bool,
     pub toml_config: TomlConfig,
+    pub admin_email: String,
     pub admin_password: String,
+    pub mailer_username: String,
+    pub mailer_password: String,
 }
 
 impl Config {
@@ -32,6 +35,9 @@ impl Config {
             == "mainnet";
 
         let admin_password = std::env::var("ADMIN_PASSWORD").expect("ADMIN_PASSWORD is not set");
+        let admin_email = std::env::var("ADMIN_EMAIL").expect("ADMIN_EMAIL is not set");
+        let mailer_username = std::env::var("MAILER_USERNAME").expect("MAILER_USERNAME is not set");
+        let mailer_password = std::env::var("MAILER_PASSWORD").expect("MAILER_PASSWORD is not set");
 
         // Load config from toml file based on the environment (mainnet or testnet)
         let toml_config_file_path = if is_mainnet {
@@ -49,7 +55,10 @@ impl Config {
             private_key,
             is_mainnet,
             toml_config,
+            admin_email,
             admin_password,
+            mailer_username,
+            mailer_password,
         }
     }
 }
