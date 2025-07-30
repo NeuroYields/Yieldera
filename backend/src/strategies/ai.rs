@@ -1,0 +1,3 @@
+/*
+   This Strategy is not supported on testnet cause it relies on coingecko pools data which is not available for testnet pools
+*/

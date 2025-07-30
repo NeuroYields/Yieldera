@@ -10,7 +10,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{CONFIG, FEE_FACTOR},
     helpers,
-    types::{Pool, Token, VaultDetails},
+    types::{Pool, Token, VaultDetails, VaultTokenBalances},
 };
 
 sol!(
@@ -140,4 +140,116 @@ where
         is_active,
         is_vault_tokens_associated,
     })
+}
+
+pub async fn get_vault_tokens_balances<P>(
+    provider: &P,
+    vault: &VaultDetails,
+) -> Result<VaultTokenBalances>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let token0 = &vault.pool.token0;
+    let token1 = &vault.pool.token1;
+
+    let token0_balance: f64;
+    let token1_balance: f64;
+    let token0_balance_u256: U256;
+    let token1_balance_u256: U256;
+
+    let balance = ERC20::new(Address::from_str(token0.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
+
+    token0_balance_u256 = balance;
+    token0_balance = format_units(balance, token0.decimals)?.parse()?;
+
+    let balance = ERC20::new(Address::from_str(token1.address.as_str())?, provider)
+        .balanceOf(vault_address)
+        .call()
+        .await?;
+
+    token1_balance_u256 = balance;
+    token1_balance = format_units(balance, token1.decimals)?.parse()?;
+
+    Ok(VaultTokenBalances {
+        token0_balance,
+        token1_balance,
+        token0_balance_u256,
+        token1_balance_u256,
+    })
+}
+
+pub async fn update_vault_current_tick<P>(provider: &P, vault: &mut VaultDetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let current_tick = vault_contract.currentTick().call().await?;
+
+    vault.pool.current_tick = current_tick.as_i32();
+
+    Ok(())
+}
+
+pub async fn update_vault_live<P>(provider: &P, vault: &mut VaultDetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let current_tick = vault_contract.currentTick().call().await?.as_i32();
+
+    // Calculate the pool price1 and price0 by using the current tick
+    let price1 = helpers::math::tick_to_price(
+        current_tick,
+        vault.pool.token0.decimals,
+        vault.pool.token1.decimals,
+    )?;
+    let price0 = 1.0 / price1;
+
+    vault.pool.current_tick = current_tick;
+    vault.pool.price1 = price1;
+    vault.pool.price0 = price0;
+
+    Ok(())
+}
+
+pub async fn update_vault_after_rebalance<P>(provider: &P, vault: &mut VaultDetails) -> Result<()>
+where
+    P: Provider + WalletProvider,
+{
+    let vault_address = Address::from_str(vault.address.as_str())?;
+
+    let vault_contract = YielderaVault::new(vault_address, provider);
+
+    let current_tick = vault_contract.currentTick().call().await?.as_i32();
+    let lower_tick = vault_contract.lowerTick().call().await?;
+    let upper_tick = vault_contract.upperTick().call().await?;
+    let is_active = vault_contract.isActive().call().await?;
+
+    // Calculate the pool price1 and price0 by using the current tick
+    let price1 = helpers::math::tick_to_price(
+        current_tick,
+        vault.pool.token0.decimals,
+        vault.pool.token1.decimals,
+    )?;
+    let price0 = 1.0 / price1;
+
+    vault.pool.current_tick = current_tick;
+    vault.pool.price1 = price1;
+    vault.pool.price0 = price0;
+    vault.lower_tick = lower_tick.as_i32();
+    vault.upper_tick = upper_tick.as_i32();
+    vault.is_active = is_active;
+
+    Ok(())
 }
