@@ -15,7 +15,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
     helpers,
-    types::{Pool, Token, VaultTokenBalances, Vaultdetails},
+    types::{Pool, Token, VaultDetails, VaultTokenBalances},
 };
 
 sol!(
@@ -58,7 +58,7 @@ sol! {
     }
 }
 
-pub async fn get_vault_details<P>(provider: &P, vault_address: &str) -> Result<Vaultdetails>
+pub async fn get_vault_details<P>(provider: &P, vault_address: &str) -> Result<VaultDetails>
 where
     P: Provider + WalletProvider,
 {
@@ -76,6 +76,8 @@ where
     let tick_spacing = vault.tickSpacing().call().await?.as_i32();
     let lower_tick = vault.lowerTick().call().await?.as_i32();
     let upper_tick = vault.upperTick().call().await?.as_i32();
+    let is_active = vault.isActive().call().await?;
+    let is_vault_tokens_associated = vault.isVaultTokensAssociated().call().await?;
 
     // Ftehcing sqrt and tick of the pool
     let slot0 = UniswapV3Pool::new(pool_address, provider)
@@ -107,7 +109,7 @@ where
     let price1 = helpers::math::tick_to_price(current_tick, token0_decimals, token1_decimals)?;
     let price0 = 1.0 / price1;
 
-    Ok(Vaultdetails {
+    Ok(VaultDetails {
         address: vault_address.to_string(),
         pool: Pool {
             address: pool_address.to_string(),
@@ -138,12 +140,14 @@ where
         total_supply,
         lower_tick,
         upper_tick,
+        is_active,
+        is_vault_tokens_associated,
     })
 }
 
 pub async fn update_vault_current_position_data<P>(
     provider: &P,
-    vault: &mut Vaultdetails,
+    vault: &mut VaultDetails,
 ) -> Result<()>
 where
     P: Provider + WalletProvider,
@@ -163,7 +167,7 @@ where
 
 pub async fn deposit_tokens_to_vault<P>(
     provider: &P,
-    vault: &Vaultdetails,
+    vault: &VaultDetails,
     deposit0: f64,
     deposit1: f64,
 ) -> Result<TransactionReceipt>
@@ -331,7 +335,7 @@ where
 
 pub async fn mint_liquidity_from_amount0<P>(
     provider: &P,
-    vault: &Vaultdetails,
+    vault: &VaultDetails,
     lower_tick: i32,
     upper_tick: i32,
     amount0_desired: f64,
@@ -390,7 +394,7 @@ where
     Ok(())
 }
 
-pub async fn burn_all_liquidity<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+pub async fn burn_all_liquidity<P>(provider: &P, vault: &VaultDetails) -> Result<()>
 where
     P: Provider + WalletProvider,
 {
@@ -420,7 +424,7 @@ where
     Ok(())
 }
 
-pub async fn associate_vault_tokens<P>(provider: &P, vault: &Vaultdetails) -> Result<()>
+pub async fn associate_vault_tokens<P>(provider: &P, vault: &VaultDetails) -> Result<()>
 where
     P: Provider + WalletProvider,
 {
@@ -447,7 +451,7 @@ where
 
 pub async fn get_vault_token_balance_for_calculations<P>(
     provider: &P,
-    vault: &Vaultdetails,
+    vault: &VaultDetails,
 ) -> Result<VaultTokenBalances>
 where
     P: Provider + WalletProvider,
@@ -490,7 +494,7 @@ where
 
 pub async fn get_vault_shares_by_address<P>(
     evm_provider: &P,
-    vault_details: &Vaultdetails,
+    vault_details: &VaultDetails,
     address: &str,
 ) -> Result<(U256, f64)>
 where
@@ -512,7 +516,7 @@ where
 
 pub async fn withdraw_shares_from_vault<P>(
     evm_provider: &P,
-    vault_details: &Vaultdetails,
+    vault_details: &VaultDetails,
     shares_u256: U256,
     to_address: Address,
 ) -> Result<()>

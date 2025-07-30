@@ -62,6 +62,7 @@ contract YielderaVault is
     uint24 public performanceFee = 10;
     uint256 public vaultFees0 = 0;
     uint256 public vaultFees1 = 0;
+    bool public isVaultTokensAssociated = false;
 
     // Events
     event Deposit(
@@ -160,6 +161,8 @@ contract YielderaVault is
         associateToken(token0);
         associateToken(token1);
         associateToken(SAUCER_NFT_TOKEN);
+        // Update the vault tokens association status
+        isVaultTokensAssociated = true;
     }
 
     /// @notice Unwraps the contract's WHBAR balance and sends it to recipient as hbar.

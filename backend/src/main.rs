@@ -1,25 +1,97 @@
+mod api;
 mod config;
+mod core;
 mod helpers;
+mod state;
 mod strategies;
 mod types;
 
-use std::str::FromStr;
+use actix_web::{App, HttpServer, web};
 
-use alloy::{primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
-use color_eyre::eyre::Result;
+use tracing::{error, info};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use utoipa_actix_web::AppExt;
+use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{
-    config::{CHAIN_ID, IS_NEW_CONTRACT, RPC_URL},
-    types::Token,
-};
+use crate::{config::CONFIG, core::init::init_all_vaults, state::AppState};
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    Ok(())
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    color_eyre::install().expect("Failed to install color_eyre");
+
+    // Initialize the logger logic
+    let file_appender = tracing_appender::rolling::daily("./logs", "yieldera.log");
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+
+    // Console writer (stdout)
+    let console_layer = fmt::layer().pretty(); // Optional: makes console output prettier
+
+    // File layer
+    let file_layer = fmt::layer().with_writer(file_writer).with_ansi(false); // don't add colors to the file logs
+
+    // 🔥 Only accept logs that match your crate
+    let filter = EnvFilter::new("yieldera=debug");
+
+    // Combine both
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(console_layer)
+        .with(file_layer)
+        .init();
+
+    info!("Logger initialized Successfully");
+
+    // Initalize empty state
+    let app_state = web::Data::new(AppState::new().await);
+
+    info!("Config: {:?}", *CONFIG);
+
+    // Init all vaults and store them in the app state
+    init_all_vaults(&app_state).await.unwrap();
+
+    let all_vaults_addresses = &CONFIG.toml_config.vaults;
+
+    //  Open a tokio thread for each vault stored in the app state, and start the liquidity management loop
+    for address in all_vaults_addresses {
+        let cloned_app_state = app_state.clone();
+        tokio::spawn(async move {
+            match core::vault_spawn::start_vault_liq_management(address, cloned_app_state).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!(
+                        "Failed on start vault liq management for address: {:?}",
+                        address
+                    );
+                    error!("Error: {:?}", e);
+                }
+            };
+        });
+    }
+
+    // Start the http server
+    info!("Starting Http Server at http://127.0.0.1:8080");
+    info!("Starting SWAGGER Server at http://127.0.0.1:8080/swagger-ui/");
+
+    HttpServer::new(move || {
+        let (app, app_api) = App::new()
+            .into_utoipa_app()
+            .app_data(web::Data::clone(&app_state))
+            .service(api::get_index_service)
+            .service(api::get_health_service)
+            .service(api::handle_get_all_vaults)
+            .service(api::handle_admin_associate_vault_tokens)
+            .split_for_parts();
+
+        app.service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", app_api))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
 
 #[cfg(test)]
 mod test {
+
     use alloy::{
         primitives::{
             Address,
@@ -28,13 +100,18 @@ mod test {
         },
         providers::WalletProvider,
     };
+    use std::str::FromStr;
 
     use crate::{
-        helpers::{math::uniswap_v3::liquidity_math, vault::YielderaVault},
+        config::{CHAIN_ID, IS_NEW_CONTRACT, RPC_URL},
+        helpers::vault::YielderaVault,
         types::PrepareSwapArgs,
     };
 
     use super::*;
+    use alloy::{primitives::U256, providers::ProviderBuilder, signers::local::PrivateKeySigner};
+
+    use color_eyre::eyre::Result;
 
     #[tokio::test]
     async fn test_mint_burn_without_native_coin() -> Result<()> {

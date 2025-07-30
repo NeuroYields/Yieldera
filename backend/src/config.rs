@@ -1,9 +1,0 @@
-pub const RPC_URL: &str = "https://testnet.hashio.io/api";
-pub const CHAIN_ID: u64 = 296;
-pub const _NATIVE_COIN_DECIMALS: u8 = 8;
-pub const HBAR_EVM_ADDRESS: &str = "0x0000000000000000000000000000000000003ad2";
-pub const FEE_FACTOR: f64 = 10_000.0;
-pub const NON_FUNGIBLE_POSITION_MANAGER_ADDRESS: &str =
-    "0x000000000000000000000000000000000013f618";
-pub const YIELDERA_CONTRACT_ADDRESS: &str = "0xF022E0BC858E3D3aFE60fcEBc91A9fc80f7D29E8";
-pub const IS_NEW_CONTRACT: bool = false;
