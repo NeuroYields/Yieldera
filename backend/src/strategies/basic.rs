@@ -7,6 +7,7 @@ use crate::{
     types::{TickRange, VaultDetails},
 };
 use color_eyre::eyre::Result;
+use tracing::info;
 
 pub async fn get_best_range(vault: &VaultDetails) -> Result<TickRange> {
     let current_price = vault.pool.price1;
@@ -17,8 +18,8 @@ pub async fn get_best_range(vault: &VaultDetails) -> Result<TickRange> {
     // High = current price + 1%
     let high_price = current_price + current_price * 0.01;
 
-    println!("Low price: {}", low_price);
-    println!("High price: {}", high_price);
+    info!("Strategy Low price: {}", low_price);
+    info!("Strategy High price: {}", high_price);
 
     let token0_decimals = vault.pool.token0.decimals;
     let token1_decimals = vault.pool.token1.decimals;

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use crate::{
     config::MONITOR_VAULT_INTERVAL_SECONDS,
     core::{self, vault::YielderaVault},
-    helpers::{self, evm},
+    helpers::{self},
     strategies,
     types::{PrepareSwapArgs, VaultDetails, VaultTokenBalances, WebAppState},
 };
@@ -82,8 +82,35 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
             vault_address
         );
 
-        // TODO: estimate balances after removing the existant liquidity, then call the rebalance function
-        todo!();
+        // TODO: Estimate balances after removing the existant liquidity by calling getCurrent position, then call the rebalance function
+        let vault_contract = YielderaVault::new(
+            Address::from_str(vault_details.address.as_str())?,
+            &app_state.evm_provider,
+        );
+
+        let current_postion = vault_contract.getCurrentPosition().call().await?;
+
+        let estim_balance0_u256 = current_postion.amount0;
+        let estim_balance1_u256 = current_postion.amount1;
+        let estim_balance0: f64 =
+            format_units(estim_balance0_u256, vault_details.pool.token0.decimals)?.parse()?;
+        let estim_balance1: f64 =
+            format_units(estim_balance1_u256, vault_details.pool.token1.decimals)?.parse()?;
+
+        let vault_token_balances = VaultTokenBalances {
+            token0_balance: estim_balance0,
+            token1_balance: estim_balance1,
+            token0_balance_u256: estim_balance0_u256,
+            token1_balance_u256: estim_balance1_u256,
+        };
+
+        debug!(
+            "Esimated balances after removing all the liqudiity: {:?}",
+            vault_token_balances
+        );
+
+        // Call the rebalance function
+        rebalance_vault(&mut vault_details, &app_state, &vault_token_balances).await?;
     } else {
         debug!(
             "Vault {} does not have a position. Checking if it is possible to mint a new position...",
@@ -126,6 +153,14 @@ pub async fn rebalance_vault(
     let lower_tick = tick_range.lower_tick;
     let upper_tick = tick_range.upper_tick;
     let current_tick = tick_range.curent_tick;
+
+    if vault_details.lower_tick == lower_tick && vault_details.upper_tick == upper_tick {
+        warn!(
+            "Vault {} already has the best tick range. Skipping rebalance.",
+            vault_details.address
+        );
+        return Ok(());
+    }
 
     // 3.3 Get the appropriate amount of token0 and token1 to add liquidity
     let lower_tick_sqrt_price =
