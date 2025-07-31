@@ -128,8 +128,8 @@ contract YielderaVault is
 
     constructor(
         address _pool
-    ) ERC20("Yieldera Vault Hbar", "YHbar") Ownable(msg.sender) {
-        require(_pool != NULL_ADDRESS, "NULL_POOL");
+    ) ERC20("Yieldera Vault Hbar", "YVHBAR") Ownable(msg.sender) {
+        // require(_pool != NULL_ADDRESS, "NULL_POOL");
 
         pool = _pool;
         poolContract = IUniswapV3Pool(_pool);
@@ -167,7 +167,7 @@ contract YielderaVault is
 
     /// @notice Unwraps the contract's WHBAR balance and sends it to recipient as hbar.
     /// @dev The amountMinimum parameter prevents malicious contracts from stealing WHBAR from users.
-    function unwrapWhbar(uint256 amount) public onlyOwner {
+    function _unwrapWhbar(uint256 amount) internal {
         // Safe approve the contract to spend the whbar
         TransferHelper.safeApprove(WHBAR_ADDRESS, WHBAR_HELPER_ADDRESS, amount);
         // Unwrap vault whbar
@@ -175,7 +175,7 @@ contract YielderaVault is
     }
 
     /// @notice Wrap the contract's whbar balance
-    function wrapHbar(uint256 amount) public payable onlyOwner {
+    function _wrapHbar(uint256 amount) internal {
         uint256 hbarBlance = address(this).balance;
 
         require(hbarBlance >= amount, "NOT_ENOUGH_HBAR");
@@ -243,7 +243,7 @@ contract YielderaVault is
                 // Ensure msg.value is equal to deposit0
                 require(msg.value == deposit0, "INSUFF_HBAR");
                 // Wrap the token0 amount
-                wrapHbar(deposit0);
+                _wrapHbar(deposit0);
             } else {
                 TransferHelper.safeTransferFrom(
                     token0,
@@ -258,7 +258,7 @@ contract YielderaVault is
             if (isToken1Native) {
                 // Ensure msg.value is equal  to deposit1
                 require(msg.value == deposit1, "INSUFF_HBAR");
-                wrapHbar(deposit1);
+                _wrapHbar(deposit1);
             } else {
                 TransferHelper.safeTransferFrom(
                     token1,
@@ -297,16 +297,7 @@ contract YielderaVault is
 
         require(senderShareBalance >= shares, "INSUFF_SHARES_BAL");
 
-        // Withdraw the user liquiidity shares friom the current position and burn them
-        (uint256 pos0, uint256 pos1) = _burnLiquidity(
-            lowerTick,
-            upperTick,
-            _liquidityForShares(lowerTick, upperTick, shares),
-            to,
-            false
-        );
-
-        // Push tokens proportional to unused balances
+        // Calc the unused balances shares of teh user
         uint256 _totalSupply = totalSupply();
 
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
@@ -315,17 +306,42 @@ contract YielderaVault is
         uint256 unused0 = (balance0 * shares) / _totalSupply;
         uint256 unused1 = (balance1 * shares) / _totalSupply;
 
-        // Transfer unused tokens to the user
-        if (unused0 > 0) {
-            IERC20(token0).safeTransfer(to, unused0);
-        }
-
-        if (unused1 > 0) {
-            IERC20(token1).safeTransfer(to, unused1);
-        }
+        // Withdraw the user liquiidity shares friom the current position, burn them and collect them to this address
+        (uint256 pos0, uint256 pos1) = _burnLiquidity(
+            lowerTick,
+            upperTick,
+            _liquidityForShares(lowerTick, upperTick, shares),
+            address(this),
+            false
+        );
 
         amount0 = unused0 + pos0;
         amount1 = unused1 + pos1;
+
+        // TRnasfer the amounts
+        if (amount0 > 0) {
+            // If token0 is the native token, unwrap teh amount and send it to the user as native coin
+            if (isToken0Native) {
+                // Unwrap the amount
+                _unwrapWhbar(amount0);
+                // Send the amount to the user
+                TransferHelper.safeTransferHBAR(to, amount0);
+            } else {
+                IERC20(token0).safeTransfer(to, amount0);
+            }
+        }
+
+        if (amount1 > 0) {
+            // If token1 is the native token, unwrap teh amount and send it to the user as native coin
+            if (isToken1Native) {
+                // Unwrap the amount
+                _unwrapWhbar(amount1);
+                // Send the amount to the user
+                TransferHelper.safeTransferHBAR(to, amount1);
+            } else {
+                IERC20(token1).safeTransfer(to, amount1);
+            }
+        }
 
         // Burn the shares from the total supply
         _burn(msg.sender, shares);
