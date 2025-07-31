@@ -172,6 +172,12 @@ pub async fn rebalance_vault(
 
     // 3.3 Start ai strategy that will get me the best tick range to put liq on
     let ai_strategy_result = strategies::ai::start(&vault_details).await?;
+    let ai_tick_range =
+        strategies::ai::get_tick_range_from_ai_response(ai_strategy_result, &vault_details).await?;
+
+    info!("AI strategy Tick range: {:?}", ai_tick_range);
+
+    let tick_range = ai_tick_range;
 
     let lower_tick = tick_range.lower_tick;
     let upper_tick = tick_range.upper_tick;

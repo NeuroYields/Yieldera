@@ -175,7 +175,16 @@ Recommend the best pool liquidity range for the following pool by returning the 
 
     let ai_strategy_response: AiStrategyResponse = serde_json::from_str(&json_response)?;
 
-    info!("ai_strategy_response: {:?}", ai_strategy_response);
+    debug!("ai_strategy_response: {:?}", ai_strategy_response);
+
+    info!(
+        "AI Strategy Low price: {}",
+        ai_strategy_response.new_price_range.lower_price
+    );
+    info!(
+        "AI Strategy High price: {}",
+        ai_strategy_response.new_price_range.upper_price
+    );
 
     Ok(ai_strategy_response)
 }
@@ -185,10 +194,30 @@ pub fn extract_json_from_markdown(md: &str) -> String {
     json_block.trim().to_string()
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
+pub async fn get_tick_range_from_ai_response(
+    response: AiStrategyResponse,
+    vault_details: &VaultDetails,
+) -> Result<TickRange> {
+    let lower_price = response.new_price_range.lower_price;
+    let upper_price = response.new_price_range.upper_price;
 
-    #[tokio::test]
-    async fn test_ai_prompt() {}
+    let lower_tick = helpers::math::convert_price_to_tick(
+        lower_price,
+        vault_details.pool.token0.decimals,
+        vault_details.pool.token1.decimals,
+        vault_details.pool.tick_spacing,
+    )?;
+
+    let upper_tick = helpers::math::convert_price_to_tick(
+        upper_price,
+        vault_details.pool.token0.decimals,
+        vault_details.pool.token1.decimals,
+        vault_details.pool.tick_spacing,
+    )?;
+
+    Ok(TickRange {
+        curent_tick: vault_details.pool.current_tick,
+        lower_tick,
+        upper_tick,
+    })
 }
