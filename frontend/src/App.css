@@ -1,0 +1,281 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Cyberpunk Dark Theme */
+    --background: 220 15% 3%;
+    --foreground: 120 100% 85%;
+
+    --card: 220 15% 5%;
+    --card-foreground: 120 100% 85%;
+
+    --popover: 220 15% 5%;
+    --popover-foreground: 120 100% 85%;
+
+    /* Neon Green Primary */
+    --primary: 120 100% 50%;
+    --primary-foreground: 220 15% 3%;
+
+    /* Electric Blue Secondary */
+    --secondary: 195 100% 50%;
+    --secondary-foreground: 220 15% 3%;
+
+    --muted: 220 15% 8%;
+    --muted-foreground: 120 50% 60%;
+
+    /* Purple Accent */
+    --accent: 285 100% 65%;
+    --accent-foreground: 220 15% 3%;
+
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 220 15% 3%;
+
+    --border: 120 50% 20%;
+    --input: 220 15% 8%;
+    --ring: 120 100% 50%;
+
+    --radius: 0.25rem;
+
+    /* Cyberpunk Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(120 100% 50%),
+      hsl(195 100% 50%)
+    );
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(285 100% 65%),
+      hsl(320 100% 60%)
+    );
+    --gradient-background: linear-gradient(
+      180deg,
+      hsl(220 15% 3%),
+      hsl(220 15% 1%)
+    );
+
+    /* Neon Glow Effects */
+    --shadow-neon-green: 0 0 20px hsl(120 100% 50% / 0.5);
+    --shadow-neon-blue: 0 0 20px hsl(195 100% 50% / 0.5);
+    --shadow-neon-purple: 0 0 20px hsl(285 100% 65% / 0.5);
+
+    /* Sidebar */
+    --sidebar-background: 220 15% 5%;
+    --sidebar-foreground: 120 100% 85%;
+    --sidebar-primary: 120 100% 50%;
+    --sidebar-primary-foreground: 220 15% 3%;
+    --sidebar-accent: 220 15% 8%;
+    --sidebar-accent-foreground: 120 100% 85%;
+    --sidebar-border: 120 50% 20%;
+    --sidebar-ring: 120 100% 50%;
+  }
+
+  .dark {
+    /* Same as root - cyberpunk theme is inherently dark */
+    --background: 220 15% 3%;
+    --foreground: 120 100% 85%;
+    --card: 220 15% 5%;
+    --card-foreground: 120 100% 85%;
+    --popover: 220 15% 5%;
+    --popover-foreground: 120 100% 85%;
+    --primary: 120 100% 50%;
+    --primary-foreground: 220 15% 3%;
+    --secondary: 195 100% 50%;
+    --secondary-foreground: 220 15% 3%;
+    --muted: 220 15% 8%;
+    --muted-foreground: 120 50% 60%;
+    --accent: 285 100% 65%;
+    --accent-foreground: 220 15% 3%;
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 220 15% 3%;
+    --border: 120 50% 20%;
+    --input: 220 15% 8%;
+    --ring: 120 100% 50%;
+    --sidebar-background: 220 15% 5%;
+    --sidebar-foreground: 120 100% 85%;
+    --sidebar-primary: 120 100% 50%;
+    --sidebar-primary-foreground: 220 15% 3%;
+    --sidebar-accent: 220 15% 8%;
+    --sidebar-accent-foreground: 120 100% 85%;
+    --sidebar-border: 120 50% 20%;
+    --sidebar-ring: 120 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    font-family: "Press Start 2P", monospace;
+    background-color: #0d0d0d;
+    /* color: #39ff14; */
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-terminal {
+    font-family: "Press Start 2P", monospace;
+  }
+
+  .text-glow-green {
+    text-shadow: 0 0 10px hsl(120 100% 50% / 0.8);
+  }
+
+  .text-glow-blue {
+    text-shadow: 0 0 10px hsl(195 100% 50% / 0.8);
+  }
+
+  .text-glow-purple {
+    text-shadow: 0 0 10px hsl(285 100% 65% / 0.8);
+  }
+
+  .neon-border {
+    border: 1px solid hsl(120 100% 50%);
+    box-shadow: 0 0 10px hsl(120 100% 50% / 0.3),
+      inset 0 0 10px hsl(120 100% 50% / 0.1);
+  }
+
+  .matrix-rain {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.1;
+  }
+
+  @keyframes glitch {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-2px);
+    }
+    40% {
+      transform: translateX(2px);
+    }
+    60% {
+      transform: translateX(-1px);
+    }
+    80% {
+      transform: translateX(1px);
+    }
+  }
+
+  .glitch:hover {
+    animation: glitch 0.3s ease-in-out;
+  }
+
+  @keyframes neon-pulse {
+    0%,
+    100% {
+      text-shadow: 0 0 5px hsl(120 100% 50%), 0 0 10px hsl(120 100% 50%),
+        0 0 15px hsl(120 100% 50%);
+    }
+    50% {
+      text-shadow: 0 0 2px hsl(120 100% 50%), 0 0 5px hsl(120 100% 50%),
+        0 0 8px hsl(120 100% 50%);
+    }
+  }
+
+  .neon-pulse {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+
+  /* Custom Cyberpunk Scrollbar */
+  .cyber-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .cyber-scroll::-webkit-scrollbar-track {
+    background: hsl(220 15% 5%);
+    border-radius: 4px;
+    border: 1px solid hsl(120 50% 20%);
+  }
+
+  .cyber-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      hsl(120 100% 50% / 0.8),
+      hsl(120 100% 30% / 0.8)
+    );
+    border-radius: 4px;
+    border: 1px solid hsl(120 100% 50% / 0.3);
+    box-shadow: 0 0 5px hsl(120 100% 50% / 0.3);
+  }
+
+  .cyber-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      hsl(120 100% 60% / 0.9),
+      hsl(120 100% 40% / 0.9)
+    );
+    box-shadow: 0 0 8px hsl(120 100% 50% / 0.5);
+  }
+
+  .cyber-scroll::-webkit-scrollbar-corner {
+    background: hsl(220 15% 5%);
+  }
+
+  /* Firefox scrollbar */
+  .cyber-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(120 100% 50% / 0.8) hsl(220 15% 5%);
+  }
+}
+
+@layer components {
+  .cyber-button {
+    @apply bg-transparent border-2 border-green-500 text-cyber-green px-4 py-2 font-retro text-xs uppercase tracking-wider transition-all duration-300 hover:bg-green-500/20 hover:shadow-lg hover:shadow-green-500/50 focus:outline-none focus:ring-2 focus:ring-green-500/50;
+  }
+
+  .cyber-input {
+    @apply bg-black/50 border border-green-500 text-cyber-green px-3 py-2 font-retro text-xs focus:outline-none focus:border-cyber-green focus:shadow-lg focus:shadow-green-500/30 transition-all duration-300;
+  }
+
+  .animate-pulse-border {
+    animation: pulse-border 2s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: #22c55e;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+  100% {
+    border-color: #39ff14;
+    box-shadow: 0 0 30px rgba(57, 255, 20, 0.5);
+  }
+}
+
+.builtOnHederaSVG {
+  height: 60px;
+  width: auto;
+}
+
+.hbarLogoImg {
+  width: 36px;
+  height: auto;
+  filter: brightness(0) saturate(100%) invert(85%) sepia(100%) saturate(7500%)
+    hue-rotate(90deg) brightness(100%) contrast(100%);
+}
+
+.walletLogoImage {
+  width: 30px;
+  height: auto;
+}
