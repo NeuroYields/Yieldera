@@ -118,25 +118,26 @@ mod test {
         // load env vars
         dotenvy::dotenv().ok();
 
-        let private_key = std::env::var("PRIVATE_KEY")?;
+        let private_key = CONFIG.private_key.clone();
 
         let evm_signer = PrivateKeySigner::from_str(private_key.as_str())?;
 
         // Init provider with the specified rpc url in config
         let evm_provider = ProviderBuilder::new()
-            .with_chain_id(CHAIN_ID)
+            .with_chain_id(CONFIG.toml_config.chain_id)
             .wallet(evm_signer)
-            .connect(RPC_URL)
+            .connect(&CONFIG.toml_config.rpc_url)
             .await?;
 
-        let contract_address = "0xA5B1102CF31e71b59544BD648EE1fC293B043bE0";
+        let contract_address = CONFIG.toml_config.vaults[0].as_str();
+        // let contract_address = "0xA5B1102CF31e71b59544BD648EE1fC293B043bE0";
 
         let vault_details =
-            helpers::vault::get_vault_details(&evm_provider, contract_address).await?;
+            core::vault::get_vault_details(&evm_provider, contract_address).await?;
 
         println!("{:#?}", vault_details);
 
-        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 2.5, 2.0).await?;
+        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 0.0, 0.1).await?;
 
         Ok(())
     }

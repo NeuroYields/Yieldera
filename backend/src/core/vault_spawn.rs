@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    config::MONITOR_VAULT_INTERVAL_SECONDS,
+    config::{CONFIG, MONITOR_VAULT_INTERVAL_SECONDS},
     core::{self, vault::YielderaVault},
     helpers::{self},
     strategies,
@@ -108,8 +108,10 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
 
         let current_postion = vault_contract.getCurrentPosition().call().await?;
 
-        let estim_balance0_u256 = current_postion.amount0;
-        let estim_balance1_u256 = current_postion.amount1;
+        let estim_balance0_u256 =
+            current_postion.amount0 + vault_token_balances.token0_balance_u256;
+        let estim_balance1_u256 =
+            current_postion.amount1 + vault_token_balances.token1_balance_u256;
         let estim_balance0: f64 =
             format_units(estim_balance0_u256, vault_details.pool.token0.decimals)?.parse()?;
         let estim_balance1: f64 =
@@ -159,14 +161,32 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
 
 pub async fn rebalance_vault(
     vault_details: &mut VaultDetails,
-    app_state: &WebAppState,
+    _app_state: &WebAppState,
     vault_token_balances: &VaultTokenBalances,
 ) -> Result<()> {
     let balance0 = vault_token_balances.token0_balance;
     let balance1 = vault_token_balances.token1_balance;
 
     // 3.2 Start strategy thta will get me the best tick range to put liq on
-    let tick_range = strategies::basic::get_best_range(&vault_details).await?;
+    let _basic_tick_range = strategies::basic::get_best_range(&vault_details).await?;
+
+    // 3.3 Start ai strategy that will get me the best tick range to put liq on
+    let ai_strategy_result = strategies::ai::start(&vault_details).await?;
+
+    if !ai_strategy_result.rebalance_required {
+        warn!(
+            "AI strategy does not recommend rebalance for vault {}. Skipping rebalance.",
+            vault_details.address
+        );
+        return Ok(());
+    }
+
+    let ai_tick_range =
+        strategies::ai::get_tick_range_from_ai_response(ai_strategy_result, &vault_details).await?;
+
+    info!("AI strategy Tick range: {:?}", ai_tick_range);
+
+    let tick_range = ai_tick_range;
 
     let lower_tick = tick_range.lower_tick;
     let upper_tick = tick_range.upper_tick;
@@ -179,6 +199,9 @@ pub async fn rebalance_vault(
         );
         return Ok(());
     }
+
+    // DEBUG: STop here for debugging purposes
+    // return Ok(());
 
     // 3.3 Get the appropriate amount of token0 and token1 to add liquidity
     let lower_tick_sqrt_price =
@@ -280,51 +303,61 @@ pub async fn rebalance_vault(
 
     let vault_address = vault_details.address.as_str();
 
-    // Reint evm provider to ensure it has teh latest nonce
-    let evm_provider = core::init::init_evm_provider().await?;
+    let is_execute = CONFIG.is_execute;
 
-    // call rebelance on the vault with new tick range and swap direction and amount
-    let vault_contract = YielderaVault::new(Address::from_str(vault_address)?, &evm_provider);
+    if is_execute {
+        // Reint evm provider to ensure it has teh latest nonce
+        let evm_provider = core::init::init_evm_provider().await?;
 
-    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
-    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+        // call rebelance on the vault with new tick range and swap direction and amount
+        let vault_contract = YielderaVault::new(Address::from_str(vault_address)?, &evm_provider);
 
-    let value_to_send: U256 = parse_units("0.2", 18)?.into();
+        let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+        let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
 
-    let rebalnce_reciept = vault_contract
-        .rebalance(
-            lower_tick,
-            upper_tick,
-            swap_arg.parsed_exact_amount_out,
-            swap_arg.max_amount_in,
-            swap_arg.is_swap_0_to_1,
-        )
-        .value(value_to_send)
-        .send()
-        .await?
-        .get_receipt()
-        .await?;
+        let value_to_send: U256 = parse_units("0.2", 18)?.into();
 
-    let rebalnce_tx_hash = rebalnce_reciept.transaction_hash;
+        let rebalnce_reciept = vault_contract
+            .rebalance(
+                lower_tick,
+                upper_tick,
+                swap_arg.parsed_exact_amount_out,
+                swap_arg.max_amount_in,
+                swap_arg.is_swap_0_to_1,
+            )
+            .value(value_to_send)
+            .gas(15_000_000)
+            .send()
+            .await?
+            .get_receipt()
+            .await?;
 
-    info!(
-        "Rebalance TX Hash for vault {} is: {}",
-        vault_address, rebalnce_tx_hash
-    );
+        let rebalnce_tx_hash = rebalnce_reciept.transaction_hash;
 
-    let rebalnce_tx_status = rebalnce_reciept.status();
-
-    if !rebalnce_tx_status {
-        return Err(color_eyre::eyre::eyre!(
-            "Rebalance transaction failed for vault {}. TX Hash: {},  Error: {:?}",
-            vault_address,
-            rebalnce_tx_hash,
-            rebalnce_reciept
-        ));
-    } else {
         info!(
-            "Rebalance transaction succeeded for vault {}. TX Hash: {}",
+            "Rebalance TX Hash for vault {} is: {}",
             vault_address, rebalnce_tx_hash
+        );
+
+        let rebalnce_tx_status = rebalnce_reciept.status();
+
+        if !rebalnce_tx_status {
+            return Err(color_eyre::eyre::eyre!(
+                "Rebalance transaction failed for vault {}. TX Hash: {},  Error: {:?}",
+                vault_address,
+                rebalnce_tx_hash,
+                rebalnce_reciept
+            ));
+        } else {
+            info!(
+                "Rebalance transaction succeeded for vault {}. TX Hash: {}",
+                vault_address, rebalnce_tx_hash
+            );
+        }
+    } else {
+        warn!(
+            "Execution is disabled. Skipping rebalance for vault {}",
+            vault_address
         );
     }
 

@@ -18,8 +18,8 @@ pub async fn get_best_range(vault: &VaultDetails) -> Result<TickRange> {
     // High = current price + 1%
     let high_price = current_price + current_price * 0.01;
 
-    info!("Strategy Low price: {}", low_price);
-    info!("Strategy High price: {}", high_price);
+    info!("Basic Strategy Low price: {}", low_price);
+    info!("Basic Strategy High price: {}", high_price);
 
     let token0_decimals = vault.pool.token0.decimals;
     let token1_decimals = vault.pool.token1.decimals;
