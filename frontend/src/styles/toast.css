@@ -1,0 +1,101 @@
+/* React Toastify Custom Cyberpunk Theme */
+:root {
+  --toastify-color-info: hsl(120 100% 50%) !important;
+  --toastify-color-success: hsl(120 100% 50%) !important;
+  --toastify-color-warning: hsl(45 100% 60%) !important;
+  --toastify-color-error: hsl(0 100% 60%) !important;
+  --toastify-toast-width: fit-content !important;
+}
+
+.Toastify__toast-container {
+  max-width: 500px !important;
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+.Toastify__toast-icon {
+  margin-right: 12px !important;
+}
+
+/* Base toast styles */
+.Toastify__toast-theme--colored {
+  border-radius: 4px !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  padding: 16px !important;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid transparent !important;
+}
+
+.Toastify__toast-theme--colored.Toastify__toast--success {
+  background: hsl(220 15% 5%) !important;
+  color: hsl(120 100% 85%) !important;
+  border-color: hsl(120 100% 50%) !important;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.Toastify__toast-theme--colored.Toastify__toast--error {
+  background: hsl(220 15% 5%) !important;
+  color: hsl(0 100% 85%) !important;
+  border-color: hsl(0 100% 60%) !important;
+  box-shadow: 0 0 20px rgba(255, 60, 60, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.Toastify__toast-theme--colored.Toastify__toast--info {
+  background: hsl(220 15% 5%) !important;
+  color: hsl(195 100% 85%) !important;
+  border-color: hsl(195 100% 50%) !important;
+  box-shadow: 0 0 20px rgba(0, 191, 255, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.Toastify__toast-theme--colored.Toastify__toast--warning {
+  background: hsl(220 15% 5%) !important;
+  color: hsl(45 100% 85%) !important;
+  border-color: hsl(45 100% 60%) !important;
+  box-shadow: 0 0 20px rgba(255, 193, 7, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.Toastify__close-button {
+  color: hsl(120 100% 85%) !important;
+  opacity: 0.7 !important;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1 !important;
+}
+
+.Toastify__toast-body {
+  align-items: flex-start !important;
+  padding: 0 !important;
+}
+
+.Toastify__progress-bar {
+  background: linear-gradient(
+    90deg,
+    hsl(120 100% 50%),
+    hsl(195 100% 50%),
+    hsl(285 100% 65%)
+  ) !important;
+}
+
+/* Loading spinner for async toasts */
+.toast-loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

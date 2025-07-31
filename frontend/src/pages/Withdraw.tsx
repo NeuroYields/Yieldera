@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Wallet, Info, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Wallet,
+  Info,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
@@ -8,6 +14,7 @@ import { useVaultWithdraw } from "../hooks/useVaultWithdraw";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { YIELDERA_CONTRACT_ADDRESS } from "../config/constants";
 import { ethers } from "ethers";
+import { toast } from "../hooks/useToastify";
 
 interface VaultDetails {
   address: string;
@@ -47,7 +54,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
     vaultInfo,
     loading,
     loadingPosition,
-    error,
+    transactionStage,
     isConnected,
   } = useVaultWithdraw();
 
@@ -111,18 +118,29 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
   };
 
   const handleWithdraw = async () => {
-    if (!shareAmount || !userPosition) return;
+    if (!shareAmount || !userPosition) {
+      toast.error("Please enter a valid withdrawal amount");
+      return;
+    }
+
+    if (!isConnected) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
 
     try {
       const result = await withdrawFromVault(shareAmount);
       if (result) {
-        // Show success message or redirect
         console.log("Withdrawal successful:", result);
-        // Reset form
         setShareAmount("");
         setWithdrawPercentage(null);
+
+        toast.success(
+          "Position updated! Check your wallet for received tokens.",
+          5000
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Withdrawal failed:", error);
     }
   };
@@ -422,16 +440,6 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                     </div>
                   )}
 
-                  {/* Error Display */}
-                  {error && (
-                    <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <div className="flex items-center text-xs text-destructive font-mono">
-                        <AlertTriangle className="w-4 h-4 mr-2" />
-                        {error}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Withdraw Button */}
                   {userPosition && (
                     <Button
@@ -440,9 +448,48 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                       className="w-full h-10 text-sm font-mono"
                       size="md"
                     >
-                      {loading
-                        ? "Withdrawing..."
-                        : `Withdraw ${vaultInfo?.symbol || "LP"}`}
+                      {(() => {
+                        if (loading) {
+                          switch (transactionStage) {
+                            case "withdrawing":
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Preparing Withdrawal...</span>
+                                </div>
+                              );
+                            case "confirming":
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Confirming Transaction...</span>
+                                </div>
+                              );
+                            case "success":
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span>Withdrawal Complete!</span>
+                                </div>
+                              );
+                            case "error":
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4" />
+                                  <span>Withdrawal Failed</span>
+                                </div>
+                              );
+                            default:
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Processing...</span>
+                                </div>
+                              );
+                          }
+                        }
+                        return "Withdraw LP";
+                      })()}
                     </Button>
                   )}
                 </>

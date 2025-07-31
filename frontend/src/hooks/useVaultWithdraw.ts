@@ -7,6 +7,7 @@ import {
   YIELDERA_CONTRACT_ID,
 } from "../config/constants";
 import { ethers } from "ethers";
+import { toast } from "./useToastify";
 
 export interface UserVaultPosition {
   shareBalance: string;
@@ -22,12 +23,14 @@ export interface VaultInfo {
 
 export const useVaultWithdraw = () => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [userPosition, setUserPosition] = useState<UserVaultPosition | null>(
     null
   );
   const [vaultInfo, setVaultInfo] = useState<VaultInfo | null>(null);
   const [loadingPosition, setLoadingPosition] = useState(false);
+  const [transactionStage, setTransactionStage] = useState<
+    "idle" | "withdrawing" | "confirming" | "success" | "error"
+  >("idle");
   const { accountId, walletInterface } = useWalletInterface();
 
   useEffect(() => {
@@ -42,7 +45,6 @@ export const useVaultWithdraw = () => {
     }
 
     setLoadingPosition(true);
-    setError(null);
 
     try {
       const vaultContractId = YIELDERA_CONTRACT_ID;
@@ -196,7 +198,10 @@ export const useVaultWithdraw = () => {
       }
     } catch (err: any) {
       console.error("Error fetching user position:", err);
-      setError(err.message || "Failed to fetch user position");
+      // Only show toast for significant errors, not for normal "no position" cases
+      if (err.message && !err.message.includes("no position")) {
+        toast.error(`Failed to fetch position: ${err.message}`);
+      }
       setUserPosition(null);
     } finally {
       setLoadingPosition(false);
@@ -215,7 +220,7 @@ export const useVaultWithdraw = () => {
       }
 
       setLoading(true);
-      setError(null);
+      setTransactionStage("withdrawing");
 
       try {
         const userShareBalance = ethers.BigNumber.from(
@@ -243,60 +248,73 @@ export const useVaultWithdraw = () => {
 
         const vaultContractId = YIELDERA_CONTRACT_ID;
 
-        //withdraw function parameters
-        const functionParameters = new ContractFunctionParameterBuilder()
-          .addParam({
-            type: "uint256",
-            name: "shares",
-            value: shareAmountRaw.toString(),
-          })
-          .addParam({
-            type: "address",
-            name: "to",
-            value: AccountId.fromString(accountId).toEvmAddress(),
-          });
+        // Execute withdrawal with enhanced toast notifications
+        const withdrawResult = await toast.transaction(
+          (async () => {
+            // Create withdraw function parameters
+            const functionParameters = new ContractFunctionParameterBuilder()
+              .addParam({
+                type: "uint256",
+                name: "shares",
+                value: shareAmountRaw.toString(),
+              })
+              .addParam({
+                type: "address",
+                name: "to",
+                value: AccountId.fromString(accountId).toEvmAddress(),
+              });
 
-        console.log("Executing withdraw transaction...");
+            console.log("Executing withdraw transaction...");
 
-        const txResult = await walletInterface.executeContractFunction(
-          ContractId.fromString(vaultContractId),
-          "withdraw",
-          functionParameters,
-          600000
+            const txResult = await walletInterface.executeContractFunction(
+              ContractId.fromString(vaultContractId),
+              "withdraw",
+              functionParameters,
+              600000
+            );
+
+            if (!txResult) {
+              throw new Error(
+                "Transaction failed - no transaction hash returned"
+              );
+            }
+
+            // Wait for transaction confirmation
+            setTransactionStage("confirming");
+            const provider = new ethers.providers.Web3Provider(
+              (window as any).ethereum
+            );
+            const receipt = await provider.waitForTransaction(txResult);
+
+            if (receipt.status !== 1) {
+              throw new Error(
+                `Withdraw transaction failed with status: ${receipt.status}`
+              );
+            }
+
+            return { txHash: txResult, receipt };
+          })(),
+          {
+            loadingMessage: `Withdrawing ${shareAmount} LP tokens...`,
+            successMessage: "Withdrawal completed successfully!",
+            errorMessage: "Withdrawal transaction failed",
+            txHash: undefined, // Will be updated when available
+          }
         );
 
-        if (!txResult) {
-          throw new Error("Transaction failed - no transaction hash returned");
-        }
+        setTransactionStage("success");
+        console.log("Withdraw transaction successful:", withdrawResult);
 
-        console.log("Withdraw transaction hash:", txResult);
+        // Refresh position after successful withdrawal
+        setTimeout(() => {
+          fetchUserPosition();
+        }, 2000); // Small delay to ensure blockchain state is updated
 
-        // Verify  success
-        try {
-          const provider = new ethers.providers.Web3Provider(
-            (window as any).ethereum
-          );
-          const receipt = await provider.waitForTransaction(txResult);
-
-          if (receipt.status !== 1) {
-            throw new Error(
-              `Withdraw transaction failed with status: ${receipt.status}`
-            );
-          }
-
-          console.log("Withdraw transaction successful:", receipt);
-
-          // Refresh position
-          await fetchUserPosition();
-
-          return txResult;
-        } catch (receiptError: any) {
-          console.error("Transaction confirmation failed:", receiptError);
-          throw new Error(`Transaction failed: ${receiptError.message}`);
-        }
+        return withdrawResult.txHash;
       } catch (err: any) {
+        setTransactionStage("error");
         console.error("Withdraw error:", err);
-        setError(err.message || "Withdraw failed");
+        // Don't show additional toast as it's already handled by toast.transaction
         throw err;
       } finally {
         setLoading(false);
@@ -320,7 +338,7 @@ export const useVaultWithdraw = () => {
     vaultInfo,
     loading,
     loadingPosition,
-    error,
+    transactionStage,
     isConnected: !!walletInterface && !!accountId,
   };
 };

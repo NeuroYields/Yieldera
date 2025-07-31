@@ -1,12 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, DollarSign, TrendingUp, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  DollarSign,
+  TrendingUp,
+  Wallet,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
 import { useVaultDeposit } from "../hooks/useVaultDeposit";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { YIELDERA_CONTRACT_ADDRESS } from "../config/constants";
+import { toast } from "../hooks/useToastify";
 
 // Mock TVL data for chart
 const tvlData = [
@@ -52,7 +60,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
     "token0" | "token1" | "both"
   >("both");
 
-  const { depositToVault, loading, error, isConnected } = useVaultDeposit();
+  const { depositToVault, loading, transactionStage, isConnected } =
+    useVaultDeposit();
   const { accountId } = useWalletInterface();
 
   const currentVault = vault || {
@@ -80,28 +89,29 @@ const DepositPage = ({ vault }: DepositPageProps) => {
 
   const handleDeposit = async () => {
     if (!isConnected) {
-      alert("Please connect your wallet first");
+      toast.error("Please connect your wallet first");
       return;
     }
 
     if (!deposit0Amount && !deposit1Amount) {
-      alert("Please enter at least one deposit amount");
+      toast.error("Please enter at least one deposit amount");
       return;
     }
 
     try {
-      console.log("deposit0Amount", deposit0Amount);
-      console.log("deposit1Amount", deposit1Amount);
-      const txResult = await depositToVault(deposit0Amount, deposit1Amount);
-      console.log("Deposit successful:", txResult);
-      alert("Deposit transaction submitted successfully!");
+      const result = await depositToVault(deposit0Amount, deposit1Amount);
+      if (result) {
+        console.log("Deposit successful:", result);
+        // Reset form on success
+        setDeposit0Amount("");
+        setDeposit1Amount("");
 
-      // Reset form
-      setDeposit0Amount("");
-      setDeposit1Amount("");
-    } catch (error) {
+        // Show additional success information
+        toast.success("Deposit completed!", 5000);
+      }
+    } catch (error: any) {
       console.error("Deposit failed:", error);
-      alert(`Deposit failed: ${error}`);
+      // Error toast is already handled by the hook's toast.promise/toast.transaction
     }
   };
 
@@ -268,13 +278,6 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   )}
                 </div>
 
-                {/* Error Display */}
-                {error && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                    <p className="text-red-400 text-sm">{error}</p>
-                  </div>
-                )}
-
                 {/* Deposit Button */}
                 <Button
                   onClick={handleDeposit}
@@ -286,14 +289,55 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   className="w-full"
                   size="lg"
                 >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      DEPOSITING...
-                    </div>
-                  ) : (
-                    "DEPOSIT TO VAULT"
-                  )}
+                  {(() => {
+                    if (loading) {
+                      switch (transactionStage) {
+                        case "approving":
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>APPROVING TOKENS...</span>
+                            </div>
+                          );
+                        case "depositing":
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>SUBMITTING DEPOSIT...</span>
+                            </div>
+                          );
+                        case "confirming":
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>CONFIRMING TRANSACTION...</span>
+                            </div>
+                          );
+                        case "success":
+                          return (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" />
+                              <span>DEPOSIT COMPLETE!</span>
+                            </div>
+                          );
+                        case "error":
+                          return (
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4" />
+                              <span>DEPOSIT FAILED</span>
+                            </div>
+                          );
+                        default:
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>PROCESSING...</span>
+                            </div>
+                          );
+                      }
+                    }
+                    return "DEPOSIT TO VAULT";
+                  })()}
                 </Button>
               </div>
             </Card>
