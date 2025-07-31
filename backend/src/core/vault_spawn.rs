@@ -108,8 +108,10 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
 
         let current_postion = vault_contract.getCurrentPosition().call().await?;
 
-        let estim_balance0_u256 = current_postion.amount0;
-        let estim_balance1_u256 = current_postion.amount1;
+        let estim_balance0_u256 =
+            current_postion.amount0 + vault_token_balances.token0_balance_u256;
+        let estim_balance1_u256 =
+            current_postion.amount1 + vault_token_balances.token1_balance_u256;
         let estim_balance0: f64 =
             format_units(estim_balance0_u256, vault_details.pool.token0.decimals)?.parse()?;
         let estim_balance1: f64 =
