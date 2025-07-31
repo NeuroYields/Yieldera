@@ -161,17 +161,26 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
 
 pub async fn rebalance_vault(
     vault_details: &mut VaultDetails,
-    app_state: &WebAppState,
+    _app_state: &WebAppState,
     vault_token_balances: &VaultTokenBalances,
 ) -> Result<()> {
     let balance0 = vault_token_balances.token0_balance;
     let balance1 = vault_token_balances.token1_balance;
 
     // 3.2 Start strategy thta will get me the best tick range to put liq on
-    let tick_range = strategies::basic::get_best_range(&vault_details).await?;
+    let _basic_tick_range = strategies::basic::get_best_range(&vault_details).await?;
 
     // 3.3 Start ai strategy that will get me the best tick range to put liq on
     let ai_strategy_result = strategies::ai::start(&vault_details).await?;
+
+    if !ai_strategy_result.rebalance_required {
+        warn!(
+            "AI strategy does not recommend rebalance for vault {}. Skipping rebalance.",
+            vault_details.address
+        );
+        return Ok(());
+    }
+
     let ai_tick_range =
         strategies::ai::get_tick_range_from_ai_response(ai_strategy_result, &vault_details).await?;
 
@@ -192,7 +201,7 @@ pub async fn rebalance_vault(
     }
 
     // DEBUG: STop here for debugging purposes
-    return Ok(());
+    // return Ok(());
 
     // 3.3 Get the appropriate amount of token0 and token1 to add liquidity
     let lower_tick_sqrt_price =
@@ -317,6 +326,7 @@ pub async fn rebalance_vault(
                 swap_arg.is_swap_0_to_1,
             )
             .value(value_to_send)
+            .gas(15_000_000)
             .send()
             .await?
             .get_receipt()
