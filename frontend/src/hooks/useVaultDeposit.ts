@@ -8,10 +8,13 @@ import {
 } from "../config/constants";
 import { metamaskWallet } from "../services/wallets/metamask/metamaskClient";
 import { ethers } from "ethers";
+import { toast } from "../hooks/useToastify";
 
 export const useVaultDeposit = () => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [transactionStage, setTransactionStage] = useState<
+    "idle" | "approving" | "depositing" | "confirming" | "success" | "error"
+  >("idle");
   const { accountId, walletInterface } = useWalletInterface();
 
   const depositToVault = useCallback(
@@ -21,7 +24,7 @@ export const useVaultDeposit = () => {
       }
 
       setLoading(true);
-      setError(null);
+      setTransactionStage("idle");
 
       try {
         const deposit0 = parseFloat(deposit0Amount || "0");
@@ -34,115 +37,143 @@ export const useVaultDeposit = () => {
         const vaultContractId = YIELDERA_CONTRACT_ID;
         const sauceTokenId = "0.0.1183558";
 
-        // approval for SAUCE
+        // SAUCE token approval if needed
         if (deposit1 > 0) {
-          try {
-            const sauceAmountRaw = Math.floor(deposit1 * 1e6);
+          setTransactionStage("approving");
+          const sauceAmountRaw = Math.floor(deposit1 * 1e6);
 
-            try {
-              const approvalTxHash = await metamaskWallet.approveToken(
-                ContractId.fromString(sauceTokenId),
-                YIELDERA_CONTRACT_ADDRESS,
-                sauceAmountRaw
-              );
-              console.log("SAUCE approval transaction hash:", approvalTxHash);
-
-              if (!approvalTxHash) {
-                throw new Error("SAUCE approval transaction failed");
-              }
-
-              //  transaction confirmation using ethers
-              const provider = new ethers.providers.Web3Provider(
-                (window as any).ethereum
-              );
-              const receipt = await provider.waitForTransaction(approvalTxHash);
-
-              if (receipt.status !== 1) {
-                throw new Error(
-                  `SAUCE approval failed with status: ${receipt.status}`
+          await toast.promise(
+            (async () => {
+              try {
+                const approvalTxHash = await metamaskWallet.approveToken(
+                  ContractId.fromString(sauceTokenId),
+                  YIELDERA_CONTRACT_ADDRESS,
+                  sauceAmountRaw
                 );
+
+                if (!approvalTxHash) {
+                  throw new Error("SAUCE approval transaction failed");
+                }
+
+                // Wait for transaction confirmation
+                const provider = new ethers.providers.Web3Provider(
+                  (window as any).ethereum
+                );
+                const receipt = await provider.waitForTransaction(
+                  approvalTxHash
+                );
+
+                if (receipt.status !== 1) {
+                  throw new Error(
+                    `SAUCE approval failed with status: ${receipt.status}`
+                  );
+                }
+
+                return receipt;
+              } catch (metamaskError: any) {
+                console.log(
+                  "MetaMask SAUCE approval failed, trying HTS:",
+                  metamaskError.message
+                );
+
+                // Fallback to HTS precompile approval
+                const approvalResult = await walletInterface.approveToken(
+                  ContractId.fromString(sauceTokenId),
+                  YIELDERA_CONTRACT_ADDRESS,
+                  sauceAmountRaw
+                );
+                return approvalResult;
               }
-
-              console.log("SAUCE approval confirmed via MetaMask:", receipt);
-            } catch (metamaskError: any) {
-              console.log(
-                "MetaMask SAUCE approval failed, trying HTS:",
-                metamaskError.message
-              );
-
-              // Fallback to HTS precompile approval
-              const approvalResult = await walletInterface.approveToken(
-                ContractId.fromString(sauceTokenId),
-                YIELDERA_CONTRACT_ADDRESS,
-                sauceAmountRaw
-              );
-              console.log("SAUCE approval successful via HTS:", approvalResult);
+            })(),
+            {
+              loadingMessage: `Approving ${deposit1} SAUCE tokens...`,
+              successMessage: "SAUCE tokens approved successfully!",
+              errorMessage: "Failed to approve SAUCE tokens",
             }
-          } catch (approvalError: any) {
-            console.error("SAUCE approval failed:", approvalError.message);
-            setError(`SAUCE token approval failed: ${approvalError.message}`);
-            return;
-          }
-        }
-
-        //  deposit with  HBAR and SAUCE
-        const functionParameters = new ContractFunctionParameterBuilder()
-          .addParam({
-            type: "uint256",
-            name: "deposit0",
-            value: deposit0 > 0 ? Math.floor(deposit0 * 1e8).toString() : "0",
-          })
-          .addParam({
-            type: "uint256",
-            name: "deposit1",
-            value: deposit1 > 0 ? Math.floor(deposit1 * 1e6).toString() : "0",
-          })
-          .addParam({
-            type: "address",
-            name: "to",
-            value: AccountId.fromString(accountId).toEvmAddress(),
-          });
-
-        // MetaMask requires msg.value in wei (18 decimals) for HBAR
-        const hbarAmount =
-          deposit0 > 0 ? Math.floor(deposit0 * 1e18) : undefined;
-
-        const txResult = await walletInterface.executeContractFunction(
-          ContractId.fromString(vaultContractId),
-          "deposit",
-          functionParameters,
-          800000,
-          hbarAmount
-        );
-
-        if (!txResult) {
-          throw new Error("Transaction failed - no transaction hash returned");
-        }
-
-        console.log("Deposit transaction hash:", txResult);
-
-        try {
-          const provider = new ethers.providers.Web3Provider(
-            (window as any).ethereum
           );
-          const receipt = await provider.waitForTransaction(txResult);
+        }
 
-          if (receipt.status !== 1) {
+        // Execute deposit transaction
+        setTransactionStage("depositing");
+        const depositPromise = (async () => {
+          const functionParameters = new ContractFunctionParameterBuilder()
+            .addParam({
+              type: "uint256",
+              name: "deposit0",
+              value: deposit0 > 0 ? Math.floor(deposit0 * 1e8).toString() : "0",
+            })
+            .addParam({
+              type: "uint256",
+              name: "deposit1",
+              value: deposit1 > 0 ? Math.floor(deposit1 * 1e6).toString() : "0",
+            })
+            .addParam({
+              type: "address",
+              name: "to",
+              value: AccountId.fromString(accountId).toEvmAddress(),
+            });
+
+          // MetaMask requires msg.value in wei (18 decimals) for HBAR
+          const hbarAmount =
+            deposit0 > 0 ? Math.floor(deposit0 * 1e18) : undefined;
+
+          const txResult = await walletInterface.executeContractFunction(
+            ContractId.fromString(vaultContractId),
+            "deposit",
+            functionParameters,
+            800000,
+            hbarAmount
+          );
+
+          if (!txResult) {
             throw new Error(
-              `Deposit transaction failed with status: ${receipt.status}`
+              "Transaction failed - no transaction hash returned"
             );
           }
 
-          console.log("Deposit transaction successfully:", receipt);
-
           return txResult;
-        } catch (receiptError: any) {
-          console.error("Transaction confirmation failed:", receiptError);
-          throw new Error(`Transaction failed: ${receiptError.message}`);
-        }
+        })();
+
+        // Handle deposit transaction with confirmation
+        setTransactionStage("confirming");
+        const txResult = await toast.transaction(
+          (async () => {
+            const txHash = await depositPromise;
+
+            // Wait for transaction confirmation
+            const provider = new ethers.providers.Web3Provider(
+              (window as any).ethereum
+            );
+            const receipt = await provider.waitForTransaction(txHash);
+
+            if (receipt.status !== 1) {
+              throw new Error(
+                `Deposit transaction failed with status: ${receipt.status}`
+              );
+            }
+
+            return { txHash, receipt };
+          })(),
+          {
+            loadingMessage: `Depositing ${
+              deposit0 > 0 ? `${deposit0} HBAR` : ""
+            }${deposit0 > 0 && deposit1 > 0 ? " and " : ""}${
+              deposit1 > 0 ? `${deposit1} SAUCE` : ""
+            }...`,
+            successMessage: "Deposit completed successfully!",
+            errorMessage: "Deposit transaction failed",
+            txHash: await depositPromise,
+          }
+        );
+
+        setTransactionStage("success");
+        console.log("Deposit transaction successful:", txResult);
+
+        return txResult.txHash;
       } catch (err: any) {
+        setTransactionStage("error");
         console.error("Deposit error:", err);
-        setError(err.message || "Deposit failed");
+        // Don't show additional toast as it's already handled by toast.promise/toast.transaction
         throw err;
       } finally {
         setLoading(false);
@@ -154,7 +185,7 @@ export const useVaultDeposit = () => {
   return {
     depositToVault,
     loading,
-    error,
+    transactionStage,
     isConnected: !!walletInterface && !!accountId,
   };
 };

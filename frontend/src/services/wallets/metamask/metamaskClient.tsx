@@ -10,6 +10,7 @@ import {
   YIELDERA_CONTRACT_ADDRESS,
   YIELDERA_CONTRACT_ID,
 } from "../../../config/constants";
+import { toast } from "../../../hooks/useToastify";
 
 const currentNetworkConfig = appConfig.networks.testnet;
 
@@ -436,7 +437,7 @@ class MetaMaskWallet implements WalletInterface {
   }
 
   disconnect() {
-    alert("Please disconnect using the Metamask extension.");
+    toast.info("Please disconnect using the Metamask extension.");
   }
 }
 

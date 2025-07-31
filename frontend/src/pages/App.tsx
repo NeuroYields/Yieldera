@@ -379,10 +379,10 @@ export default function App() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="grid grid-cols-3 gap-2 pt-2">
+                  <div className="grid grid-cols-2 gap-2 pt-2">
                     <Button
                       size="sm"
-                      variant="primary"
+                      variant="secondary"
                       className="text-xs flex items-center justify-center gap-1"
                       onClick={() => navigate(`/deposit/${vault.address}`)}
                     >
@@ -391,20 +391,12 @@ export default function App() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       className="text-xs flex items-center justify-center gap-1"
                       onClick={() => navigate(`/withdraw/${vault.address}`)}
                     >
                       <ArrowUpRight className="w-3 h-3" />
                       Withdraw
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-xs flex items-center justify-center gap-1"
-                    >
-                      <TrendingUp className="w-3 h-3" />
-                      Stats
                     </Button>
                   </div>
                 </div>

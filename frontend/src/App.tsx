@@ -4,9 +4,16 @@
 import AppRouter from "./AppRouter";
 // import colorBackground from "./assets/colors.png";
 import "./App.css";
+import { ToastProvider } from "./components/ui/ToastProvider";
+import "./styles/toast.css";
 
 function App() {
-  return <AppRouter />;
+  return (
+    <>
+      <AppRouter />
+      <ToastProvider />
+    </>
+  );
 }
 
 export default App;

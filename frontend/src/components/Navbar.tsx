@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import HBARLogo from "../assets/hbar-logo.svg";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { WalletSelectionDialog } from "./WalletSelectionDialog";
+import { shortenAddress, isEvmAddress } from "../utils/address";
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
@@ -21,6 +22,13 @@ export default function NavBar() {
       setOpen(false);
     }
   }, [accountId]);
+
+  const getDisplayAddress = (address: string) => {
+    if (isEvmAddress(address)) {
+      return shortenAddress(address);
+    }
+    return address;
+  };
 
   return (
     <nav className="bg-black/80 border-b border-green-500">
@@ -44,7 +52,9 @@ export default function NavBar() {
           </h1>
         </Link>
         <button className="cyber-button" onClick={handleConnect}>
-          {accountId ? `Connected: ${accountId}` : "Connect Wallet"}
+          {accountId
+            ? `Connected: ${getDisplayAddress(accountId)}`
+            : "Connect Wallet"}
         </button>
       </div>
       <WalletSelectionDialog
