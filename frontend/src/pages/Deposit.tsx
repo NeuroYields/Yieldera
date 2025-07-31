@@ -139,8 +139,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
             Back to Vaults
           </Button>
           <div className="flex-1">
-            <h1 className="font-terminal text-2xl md:text-3xl text-glow-green">
-              DEPOSIT TO VAULT
+            <h1 className="font-mono text-2xl md:text-3xl text-white">
+              Deposit to Vault
             </h1>
             <p className="text-muted-foreground font-mono text-sm mt-1">
               {currentVault.name} • {currentVault.token0.symbol}/
@@ -152,14 +152,12 @@ const DepositPage = ({ vault }: DepositPageProps) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Deposit Widget */}
           <div className="space-y-6">
-            <Card className="neon-border bg-card/50 backdrop-blur-sm">
+            <Card className="bg-card/50 backdrop-blur-sm border border-border/50">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-terminal text-xl text-primary">
-                    DEPOSIT
-                  </h2>
+                  <h2 className="font-mono text-xl text-white">Deposit</h2>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <TrendingUp className="w-4 h-4 text-accent" />
+                    <TrendingUp className="w-4 h-4 text-green-400" />
                     {currentVault.apy}% APY
                   </div>
                 </div>
@@ -169,9 +167,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   <div className="space-y-4 p-4 bg-card/30 rounded-lg border border-border/50">
                     <div className="text-center">
                       <Wallet className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Please connect your wallet using the wallet buttons in
-                        the header
+                      <p className="text-sm text-muted-foreground mb-4 font-mono">
+                        Please connect your wallet to deposit
                       </p>
                     </div>
                   </div>
@@ -180,7 +177,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                     <div className="text-xs text-muted-foreground font-mono mb-1">
                       CONNECTED ACCOUNT
                     </div>
-                    <div className="font-terminal text-sm text-primary">
+                    <div className="font-mono text-sm text-white">
                       {accountId}
                     </div>
                   </div>
@@ -192,7 +189,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                     <div className="text-xs text-muted-foreground font-mono mb-1">
                       CURRENT TVL
                     </div>
-                    <div className="font-terminal text-lg text-primary">
+                    <div className="font-mono text-lg text-white">
                       {formatCurrency(currentVault.currentTVL)}
                     </div>
                   </div>
@@ -200,7 +197,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                     <div className="text-xs text-muted-foreground font-mono mb-1">
                       FEE TIER
                     </div>
-                    <div className="font-terminal text-lg text-secondary">
+                    <div className="font-mono text-lg text-secondary">
                       {currentVault.fee}%
                     </div>
                   </div>
@@ -208,38 +205,42 @@ const DepositPage = ({ vault }: DepositPageProps) => {
 
                 {/* Token Selection */}
                 <div>
-                  <label className="block text-sm font-terminal text-foreground mb-3">
-                    DEPOSIT TYPE
+                  <label className="block text-sm font-mono text-white mb-3">
+                    Deposit Type
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button
-                      variant={
-                        selectedToken === "token0" ? "primary" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setSelectedToken("token0")}
-                      className="text-xs"
-                    >
-                      {currentVault.token0.symbol}
-                    </Button>
-                    <Button
-                      variant={
-                        selectedToken === "token1" ? "primary" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setSelectedToken("token1")}
-                      className="text-xs"
-                    >
-                      {currentVault.token1.symbol}
-                    </Button>
-                    <Button
-                      variant={selectedToken === "both" ? "primary" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedToken("both")}
-                      className="text-xs"
-                    >
-                      BOTH
-                    </Button>
+                  <div className="bg-card/20 rounded-lg p-1 border border-border">
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        onClick={() => setSelectedToken("token0")}
+                        className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
+                          selectedToken === "token0"
+                            ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
+                            : "text-muted-foreground hover:text-white hover:bg-card/30 border-transparent hover:border-border/30"
+                        }`}
+                      >
+                        {currentVault.token0.symbol}
+                      </button>
+                      <button
+                        onClick={() => setSelectedToken("token1")}
+                        className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
+                          selectedToken === "token1"
+                            ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
+                            : "text-muted-foreground hover:text-white hover:bg-card/30 border-transparent hover:border-border/30"
+                        }`}
+                      >
+                        {currentVault.token1.symbol}
+                      </button>
+                      <button
+                        onClick={() => setSelectedToken("both")}
+                        className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
+                          selectedToken === "both"
+                            ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
+                            : "text-muted-foreground hover:text-white hover:bg-card/30 border-transparent hover:border-border/30"
+                        }`}
+                      >
+                        Both
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -247,8 +248,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                 <div className="space-y-4">
                   {(selectedToken === "token0" || selectedToken === "both") && (
                     <div>
-                      <label className="block text-sm font-terminal text-foreground mb-2">
-                        {currentVault.token0.symbol} AMOUNT
+                      <label className="block text-sm font-mono text-white mb-2">
+                        {currentVault.token0.symbol} Amount
                       </label>
                       <Input
                         type="number"
@@ -263,8 +264,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
 
                   {(selectedToken === "token1" || selectedToken === "both") && (
                     <div>
-                      <label className="block text-sm font-terminal text-foreground mb-2">
-                        {currentVault.token1.symbol} AMOUNT
+                      <label className="block text-sm font-mono text-white mb-2">
+                        {currentVault.token1.symbol} Amount
                       </label>
                       <Input
                         type="number"
@@ -286,7 +287,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                     loading ||
                     (!deposit0Amount && !deposit1Amount)
                   }
-                  className="w-full"
+                  className="w-full font-mono"
                   size="lg"
                 >
                   {(() => {
@@ -296,47 +297,47 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                           return (
                             <div className="flex items-center gap-2">
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              <span>APPROVING TOKENS...</span>
+                              <span>Approving Tokens...</span>
                             </div>
                           );
                         case "depositing":
                           return (
                             <div className="flex items-center gap-2">
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              <span>SUBMITTING DEPOSIT...</span>
+                              <span>Submitting Deposit...</span>
                             </div>
                           );
                         case "confirming":
                           return (
                             <div className="flex items-center gap-2">
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              <span>CONFIRMING TRANSACTION...</span>
+                              <span>Confirming Transaction...</span>
                             </div>
                           );
                         case "success":
                           return (
                             <div className="flex items-center gap-2">
                               <CheckCircle className="w-4 h-4" />
-                              <span>DEPOSIT COMPLETE!</span>
+                              <span>Deposit Complete!</span>
                             </div>
                           );
                         case "error":
                           return (
                             <div className="flex items-center gap-2">
                               <AlertCircle className="w-4 h-4" />
-                              <span>DEPOSIT FAILED</span>
+                              <span>Deposit Failed</span>
                             </div>
                           );
                         default:
                           return (
                             <div className="flex items-center gap-2">
                               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              <span>PROCESSING...</span>
+                              <span>Processing...</span>
                             </div>
                           );
                       }
                     }
-                    return "DEPOSIT TO VAULT";
+                    return "Deposit to Vault";
                   })()}
                 </Button>
               </div>
@@ -345,29 +346,29 @@ const DepositPage = ({ vault }: DepositPageProps) => {
 
           {/* TVL Chart */}
           <div className="space-y-6">
-            <Card className="neon-border bg-card/50 backdrop-blur-sm">
+            <Card className="bg-card/50 backdrop-blur-sm border border-border/50">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-terminal text-xl text-secondary">
-                    TVL ANALYTICS
+                  <h2 className="font-mono text-xl text-white">
+                    TVL Analytics
                   </h2>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <DollarSign className="w-4 h-4 text-accent" />
+                    <DollarSign className="w-4 h-4 text-green-400" />
                     30D Growth
                   </div>
                 </div>
 
                 {/* Current TVL Display */}
                 <div className="text-center py-4">
-                  <div className="text-3xl font-terminal text-glow-green mb-2">
+                  <div className="text-3xl font-mono text-white mb-2">
                     {formatCurrency(currentVault.currentTVL)}
                   </div>
                   <div className="text-sm text-muted-foreground font-mono">
                     Total Value Locked
                   </div>
                   <div className="flex items-center justify-center gap-2 mt-2">
-                    <TrendingUp className="w-4 h-4 text-accent" />
-                    <span className="text-accent font-mono text-sm">
+                    <TrendingUp className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400 font-mono text-sm">
                       +147% (30d)
                     </span>
                   </div>
@@ -408,24 +409,20 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                 {/* Additional Metrics */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-card/30 rounded-lg border border-border/50 text-center">
-                    <div className="text-lg font-terminal text-primary">
-                      24h
-                    </div>
+                    <div className="text-lg font-mono text-white">24h</div>
                     <div className="text-xs text-muted-foreground font-mono">
                       Volume
                     </div>
-                    <div className="text-sm font-mono text-foreground mt-1">
+                    <div className="text-sm font-mono text-white mt-1">
                       $125.6K
                     </div>
                   </div>
                   <div className="p-3 bg-card/30 rounded-lg border border-border/50 text-center">
-                    <div className="text-lg font-terminal text-secondary">
-                      156
-                    </div>
+                    <div className="text-lg font-mono text-white">156</div>
                     <div className="text-xs text-muted-foreground font-mono">
                       Depositors
                     </div>
-                    <div className="text-sm font-mono text-accent mt-1">
+                    <div className="text-sm font-mono text-white mt-1">
                       +12 today
                     </div>
                   </div>
