@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, TrendingUp, Info, Zap, DollarSign } from "lucide-react";
+import { ArrowLeft, DollarSign, TrendingUp, Wallet } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
+import { useVaultDeposit } from "../hooks/useVaultDeposit";
+import { useWalletInterface } from "../services/wallets/useWalletInterface";
+import { YIELDERA_CONTRACT_ADDRESS } from "../config/constants";
 
 // Mock TVL data for chart
 const tvlData = [
@@ -43,31 +46,27 @@ interface DepositPageProps {
 
 const DepositPage = ({ vault }: DepositPageProps) => {
   const navigate = useNavigate();
-  const { vaultAddress } = useParams();
-  const [depositAmount, setDepositAmount] = useState("");
+  const [deposit0Amount, setDeposit0Amount] = useState("");
+  const [deposit1Amount, setDeposit1Amount] = useState("");
   const [selectedToken, setSelectedToken] = useState<
     "token0" | "token1" | "both"
   >("both");
-  const [loading, setLoading] = useState(false);
-  const [slippage, setSlippage] = useState("0.5");
 
-  const handleBack = () => {
-    navigate("/app");
-  };
+  const { depositToVault, loading, error, isConnected } = useVaultDeposit();
+  const { accountId } = useWalletInterface();
 
-  // Mock vault data if none provided
   const currentVault = vault || {
-    address: "0xDa61eC2f3dc9eD67214d06F923a4Eafc6bE21B11",
+    address: YIELDERA_CONTRACT_ADDRESS,
     name: "Yieldera Vault Hbar",
     symbol: "YHbar",
     token0: {
-      symbol: "WHBAR",
-      name: "Wrapped Hbar",
-      image: "/images/tokens/whbar.png",
+      symbol: "HBAR",
+      name: "Hedera Hashgraph",
+      image: "/images/tokens/hbar.png",
     },
     token1: {
       symbol: "SAUCE",
-      name: "Sauce",
+      name: "Sauce Token",
       image: "/images/tokens/sauce.webp",
     },
     currentTVL: 2100000,
@@ -75,12 +74,35 @@ const DepositPage = ({ vault }: DepositPageProps) => {
     fee: 0.3,
   };
 
+  const handleBack = () => {
+    navigate("/app");
+  };
+
   const handleDeposit = async () => {
-    setLoading(true);
-    // Simulate deposit transaction
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setLoading(false);
-    // Handle successful deposit
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    if (!deposit0Amount && !deposit1Amount) {
+      alert("Please enter at least one deposit amount");
+      return;
+    }
+
+    try {
+      console.log("deposit0Amount", deposit0Amount);
+      console.log("deposit1Amount", deposit1Amount);
+      const txResult = await depositToVault(deposit0Amount, deposit1Amount);
+      console.log("Deposit successful:", txResult);
+      alert("Deposit transaction submitted successfully!");
+
+      // Reset form
+      setDeposit0Amount("");
+      setDeposit1Amount("");
+    } catch (error) {
+      console.error("Deposit failed:", error);
+      alert(`Deposit failed: ${error}`);
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -131,6 +153,28 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                     {currentVault.apy}% APY
                   </div>
                 </div>
+
+                {/* Wallet Status */}
+                {!isConnected ? (
+                  <div className="space-y-4 p-4 bg-card/30 rounded-lg border border-border/50">
+                    <div className="text-center">
+                      <Wallet className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Please connect your wallet using the wallet buttons in
+                        the header
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-card/30 rounded-lg border border-border/50">
+                    <div className="text-xs text-muted-foreground font-mono mb-1">
+                      CONNECTED ACCOUNT
+                    </div>
+                    <div className="font-terminal text-sm text-primary">
+                      {accountId}
+                    </div>
+                  </div>
+                )}
 
                 {/* Vault Info */}
                 <div className="grid grid-cols-2 gap-4 p-4 bg-card/30 rounded-lg border border-border/50">
@@ -189,96 +233,67 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   </div>
                 </div>
 
-                {/* Amount Input */}
-                <div>
-                  <Input
-                    label="DEPOSIT AMOUNT"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    placeholder="0.00"
-                    type="number"
-                    className="text-lg"
-                  />
-                  <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                    <span>Balance: 1,250.00 WHBAR</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs p-0 h-auto"
-                    >
-                      MAX
-                    </Button>
-                  </div>
+                {/* Deposit Inputs */}
+                <div className="space-y-4">
+                  {(selectedToken === "token0" || selectedToken === "both") && (
+                    <div>
+                      <label className="block text-sm font-terminal text-foreground mb-2">
+                        {currentVault.token0.symbol} AMOUNT
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="0.0"
+                        value={deposit0Amount}
+                        onChange={(e) => setDeposit0Amount(e.target.value)}
+                        className="font-mono"
+                        disabled={!isConnected}
+                      />
+                    </div>
+                  )}
+
+                  {(selectedToken === "token1" || selectedToken === "both") && (
+                    <div>
+                      <label className="block text-sm font-terminal text-foreground mb-2">
+                        {currentVault.token1.symbol} AMOUNT
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="0.0"
+                        value={deposit1Amount}
+                        onChange={(e) => setDeposit1Amount(e.target.value)}
+                        className="font-mono"
+                        disabled={!isConnected}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Slippage Tolerance */}
-                <div>
-                  <label className="block text-sm font-terminal text-foreground mb-2">
-                    SLIPPAGE TOLERANCE
-                  </label>
-                  <div className="flex gap-2">
-                    {["0.1", "0.5", "1.0"].map((value) => (
-                      <Button
-                        key={value}
-                        variant={slippage === value ? "primary" : "outline"}
-                        size="sm"
-                        onClick={() => setSlippage(value)}
-                        className="text-xs flex-1"
-                      >
-                        {value}%
-                      </Button>
-                    ))}
-                    <Input
-                      value={slippage}
-                      onChange={(e) => setSlippage(e.target.value)}
-                      className="w-20 text-xs text-center"
-                      placeholder="Custom"
-                    />
+                {/* Error Display */}
+                {error && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <p className="text-red-400 text-sm">{error}</p>
                   </div>
-                </div>
-
-                {/* Transaction Summary */}
-                <div className="p-4 bg-card/30 rounded-lg border border-border/50 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      You will receive:
-                    </span>
-                    <span className="font-mono text-foreground">
-                      ~{depositAmount || "0"} {currentVault.symbol}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Est. Gas Fee:</span>
-                    <span className="font-mono text-foreground">
-                      ~0.02 HBAR
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Price Impact:</span>
-                    <span className="font-mono text-accent">{"<"}0.01%</span>
-                  </div>
-                </div>
-
-                {/* Info Banner */}
-                <div className="flex items-start gap-3 p-3 bg-primary/10 border border-primary/30 rounded-lg">
-                  <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-muted-foreground font-mono">
-                    Single-sided deposits will be automatically swapped to
-                    maintain optimal LP ratios. Auto-compounding is enabled for
-                    all positions.
-                  </div>
-                </div>
+                )}
 
                 {/* Deposit Button */}
                 <Button
                   onClick={handleDeposit}
-                  loading={loading}
-                  disabled={!depositAmount || parseFloat(depositAmount) <= 0}
+                  disabled={
+                    !isConnected ||
+                    loading ||
+                    (!deposit0Amount && !deposit1Amount)
+                  }
                   className="w-full"
                   size="lg"
                 >
-                  <Zap className="w-4 h-4 mr-2" />
-                  {loading ? "PROCESSING..." : "DEPOSIT"}
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      DEPOSITING...
+                    </div>
+                  ) : (
+                    "DEPOSIT TO VAULT"
+                  )}
                 </Button>
               </div>
             </Card>
