@@ -127,3 +127,44 @@ pub struct ApiErrorResponse {
     pub message: String,
     pub error: String,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CoingeckoOhlcvRes {
+    data: CoingeckoResData,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CoingeckoResData {
+    pub id: String,
+    pub attributes: CoingeckoResDataAttributes,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CoingeckoResDataAttributes {
+    pub ohlcv_list: Vec<OhlcvEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OhlcvEntry(
+    i64, // timestamp (UNIX)
+    f64, // open
+    f64, // high
+    f64, // low
+    f64, // close
+    f64, // volume
+);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiStrategyResponse {
+    pub rebalance_required: bool,
+    pub new_price_range: PriceRange,
+    pub analysis: String,
+    pub market_outlook: String,
+    pub confidence_score: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PriceRange {
+    pub lower_price: f64,
+    pub upper_price: f64,
+}

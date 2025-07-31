@@ -170,6 +170,9 @@ pub async fn rebalance_vault(
     // 3.2 Start strategy thta will get me the best tick range to put liq on
     let tick_range = strategies::basic::get_best_range(&vault_details).await?;
 
+    // 3.3 Start ai strategy that will get me the best tick range to put liq on
+    let ai_strategy_result = strategies::ai::start(&vault_details).await?;
+
     let lower_tick = tick_range.lower_tick;
     let upper_tick = tick_range.upper_tick;
     let current_tick = tick_range.curent_tick;
@@ -181,6 +184,9 @@ pub async fn rebalance_vault(
         );
         return Ok(());
     }
+
+    // DEBUG: STop here for debugging purposes
+    return Ok(());
 
     // 3.3 Get the appropriate amount of token0 and token1 to add liquidity
     let lower_tick_sqrt_price =

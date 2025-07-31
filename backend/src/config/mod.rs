@@ -23,6 +23,7 @@ pub struct Config {
     pub mailer_username: String,
     pub mailer_password: String,
     pub is_execute: bool,
+    pub coingecko_api_key: String,
 }
 
 impl Config {
@@ -36,11 +37,12 @@ impl Config {
             == "mainnet";
 
         let is_execute = std::env::var("IS_EXECUTE").unwrap_or("false".to_string()) == "true";
-
         let admin_password = std::env::var("ADMIN_PASSWORD").expect("ADMIN_PASSWORD is not set");
         let admin_email = std::env::var("ADMIN_EMAIL").expect("ADMIN_EMAIL is not set");
         let mailer_username = std::env::var("MAILER_USERNAME").expect("MAILER_USERNAME is not set");
         let mailer_password = std::env::var("MAILER_PASSWORD").expect("MAILER_PASSWORD is not set");
+        let coingecko_api_key =
+            std::env::var("COINGEKO_API_KEY").expect("COINGEKO_API_KEY is not set");
 
         // Load config from toml file based on the environment (mainnet or testnet)
         let toml_config_file_path = if is_mainnet {
@@ -63,6 +65,7 @@ impl Config {
             mailer_username,
             mailer_password,
             is_execute,
+            coingecko_api_key,
         }
     }
 }
