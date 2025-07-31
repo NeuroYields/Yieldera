@@ -32,18 +32,6 @@ contract YielderaVault is
     uint256 public constant PRECISION = 10 ** 18;
     uint256 constant PERCENT = 100;
     address constant NULL_ADDRESS = address(0);
-    address constant WHBAR_ADDRESS =
-        address(0x0000000000000000000000000000000000003aD2);
-    address constant WHBAR_HELPER_ADDRESS =
-        address(0x000000000000000000000000000000000050a8a7);
-    address constant SAUCER_NFT_TOKEN =
-        address(0x000000000000000000000000000000000013feE4);
-    address constant SAUCER_FACTORY_ADDRESS =
-        address(0x00000000000000000000000000000000001243eE);
-    INonfungiblePositionManager constant NFPM =
-        INonfungiblePositionManager(0x000000000000000000000000000000000013F618);
-    ISwapRouter constant SWAP_ROUTER =
-        ISwapRouter(0x0000000000000000000000000000000000159398);
 
     // Immutable state variables
     address public immutable pool;
@@ -63,6 +51,13 @@ contract YielderaVault is
     uint256 public vaultFees0 = 0;
     uint256 public vaultFees1 = 0;
     bool public isVaultTokensAssociated = false;
+
+    address WHBAR_ADDRESS;
+    address WHBAR_HELPER_ADDRESS;
+    address SAUCER_NFT_TOKEN;
+    address SAUCER_FACTORY_ADDRESS;
+    INonfungiblePositionManager NFPM;
+    ISwapRouter SWAP_ROUTER;
 
     // Events
     event Deposit(
@@ -127,9 +122,24 @@ contract YielderaVault is
     event CustomEvent(address indexed sender, string message);
 
     constructor(
-        address _pool
+        address _pool,
+        address _whbar_address,
+        address _whbar_helper_address,
+        address _saucer_nft_token,
+        address _saucer_factory_address,
+        address _nonfungible_position_manager_address,
+        address _swap_router_address
     ) ERC20("Yieldera Vault Hbar", "YVHBAR") Ownable(msg.sender) {
-        // require(_pool != NULL_ADDRESS, "NULL_POOL");
+        require(_pool != NULL_ADDRESS, "NULL_POOL");
+
+        WHBAR_ADDRESS = _whbar_address;
+        WHBAR_HELPER_ADDRESS = _whbar_helper_address;
+        SAUCER_NFT_TOKEN = _saucer_nft_token;
+        SAUCER_FACTORY_ADDRESS = _saucer_factory_address;
+        NFPM = INonfungiblePositionManager(
+            _nonfungible_position_manager_address
+        );
+        SWAP_ROUTER = ISwapRouter(_swap_router_address);
 
         pool = _pool;
         poolContract = IUniswapV3Pool(_pool);
