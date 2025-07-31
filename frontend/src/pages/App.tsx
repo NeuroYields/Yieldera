@@ -5,7 +5,15 @@ import { AccountId } from "@hashgraph/sdk";
 import { Card } from "../components/ui/card2";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { Bot, Send, Activity, Zap, TrendingUp, DollarSign } from "lucide-react";
+import {
+  Bot,
+  Send,
+  Activity,
+  Zap,
+  TrendingUp,
+  DollarSign,
+  ArrowUpRight,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // Mock vault data
@@ -371,11 +379,11 @@ export default function App() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="grid grid-cols-3 gap-2 pt-2">
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="flex-1 text-xs flex items-center justify-center gap-1"
+                      variant="primary"
+                      className="text-xs flex items-center justify-center gap-1"
                       onClick={() => navigate(`/deposit/${vault.address}`)}
                     >
                       <DollarSign className="w-3 h-3" />
@@ -383,8 +391,17 @@ export default function App() {
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="text-xs flex items-center justify-center gap-1"
+                      onClick={() => navigate(`/withdraw/${vault.address}`)}
+                    >
+                      <ArrowUpRight className="w-3 h-3" />
+                      Withdraw
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="ghost"
-                      className="flex-1 text-xs flex items-center justify-center gap-1"
+                      className="text-xs flex items-center justify-center gap-1"
                     >
                       <TrendingUp className="w-3 h-3" />
                       Stats
