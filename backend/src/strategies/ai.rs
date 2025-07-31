@@ -60,6 +60,7 @@ pub async fn start(vault_details: &VaultDetails) -> Result<AiStrategyResponse> {
 You are an advanced strategist for an automated liquidity manager. Your job is to **analyze market conditions** using the given historical OHLCV price data, current price, and active range, then decide:
 
 * Whether the current liquidity position needs rebalancing.
+* PLease if the current position prices are good even if it is not very optimal, Don't rebalance the position and just keep it as it is to avoid uneessary fees.
 * If yes, what is the **optimal price range** (in terms of **actual price values**, not ticks) to maximize fee income, maintain capital efficiency, and minimize risk.
 
 ---
@@ -118,13 +119,14 @@ You are an advanced strategist for an automated liquidity manager. Your job is t
 ### 📤 Output Format (example)
 
 * Always return a JSON object following this exmple format:
+* If rebelance is not needed, the lower and upper prices will be 0.0 not null. 
 
 ```json
 {
   "rebalance_required": true,
   "new_price_range": {
-    "lower_price": 0.92,
-    "upper_price": 1.07
+    "lower_price":  0.0,
+    "upper_price": 0.0
     },
   "analysis": "Recent consolidation suggests a mean-reverting regime between 0.9 and 1.1. Current price sits near the lower edge of the old range, making it inefficient. The new range better captures the most probable price path while slightly skewing for upward momentum. ....",
   "market_outlook": "Will be bullish in the near future based on those factors: ...",
