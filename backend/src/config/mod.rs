@@ -22,6 +22,7 @@ pub struct Config {
     pub admin_password: String,
     pub mailer_username: String,
     pub mailer_password: String,
+    pub is_execute: bool,
 }
 
 impl Config {
@@ -33,6 +34,8 @@ impl Config {
             .unwrap_or("testnet".to_string())
             .to_lowercase()
             == "mainnet";
+
+        let is_execute = std::env::var("IS_EXECUTE").unwrap_or("false".to_string()) == "true";
 
         let admin_password = std::env::var("ADMIN_PASSWORD").expect("ADMIN_PASSWORD is not set");
         let admin_email = std::env::var("ADMIN_EMAIL").expect("ADMIN_EMAIL is not set");
@@ -59,6 +62,7 @@ impl Config {
             admin_password,
             mailer_username,
             mailer_password,
+            is_execute,
         }
     }
 }
@@ -68,4 +72,4 @@ pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
 
 // Other constants
 pub const FEE_FACTOR: f64 = 10_000.0;
-pub const MONITOR_VAULT_INTERVAL_SECONDS: u64 = 60 * 2; // 1 hour in seconds
+pub const MONITOR_VAULT_INTERVAL_SECONDS: u64 = 60 * 5; // 1 hour in seconds

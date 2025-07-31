@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    config::MONITOR_VAULT_INTERVAL_SECONDS,
+    config::{CONFIG, MONITOR_VAULT_INTERVAL_SECONDS},
     core::{self, vault::YielderaVault},
     helpers::{self},
     strategies,
@@ -282,51 +282,60 @@ pub async fn rebalance_vault(
 
     let vault_address = vault_details.address.as_str();
 
-    // Reint evm provider to ensure it has teh latest nonce
-    let evm_provider = core::init::init_evm_provider().await?;
+    let is_execute = CONFIG.is_execute;
 
-    // call rebelance on the vault with new tick range and swap direction and amount
-    let vault_contract = YielderaVault::new(Address::from_str(vault_address)?, &evm_provider);
+    if is_execute {
+        // Reint evm provider to ensure it has teh latest nonce
+        let evm_provider = core::init::init_evm_provider().await?;
 
-    let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
-    let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
+        // call rebelance on the vault with new tick range and swap direction and amount
+        let vault_contract = YielderaVault::new(Address::from_str(vault_address)?, &evm_provider);
 
-    let value_to_send: U256 = parse_units("0.2", 18)?.into();
+        let upper_tick = I24::from_str(upper_tick.to_string().as_str())?;
+        let lower_tick = I24::from_str(lower_tick.to_string().as_str())?;
 
-    let rebalnce_reciept = vault_contract
-        .rebalance(
-            lower_tick,
-            upper_tick,
-            swap_arg.parsed_exact_amount_out,
-            swap_arg.max_amount_in,
-            swap_arg.is_swap_0_to_1,
-        )
-        .value(value_to_send)
-        .send()
-        .await?
-        .get_receipt()
-        .await?;
+        let value_to_send: U256 = parse_units("0.2", 18)?.into();
 
-    let rebalnce_tx_hash = rebalnce_reciept.transaction_hash;
+        let rebalnce_reciept = vault_contract
+            .rebalance(
+                lower_tick,
+                upper_tick,
+                swap_arg.parsed_exact_amount_out,
+                swap_arg.max_amount_in,
+                swap_arg.is_swap_0_to_1,
+            )
+            .value(value_to_send)
+            .send()
+            .await?
+            .get_receipt()
+            .await?;
 
-    info!(
-        "Rebalance TX Hash for vault {} is: {}",
-        vault_address, rebalnce_tx_hash
-    );
+        let rebalnce_tx_hash = rebalnce_reciept.transaction_hash;
 
-    let rebalnce_tx_status = rebalnce_reciept.status();
-
-    if !rebalnce_tx_status {
-        return Err(color_eyre::eyre::eyre!(
-            "Rebalance transaction failed for vault {}. TX Hash: {},  Error: {:?}",
-            vault_address,
-            rebalnce_tx_hash,
-            rebalnce_reciept
-        ));
-    } else {
         info!(
-            "Rebalance transaction succeeded for vault {}. TX Hash: {}",
+            "Rebalance TX Hash for vault {} is: {}",
             vault_address, rebalnce_tx_hash
+        );
+
+        let rebalnce_tx_status = rebalnce_reciept.status();
+
+        if !rebalnce_tx_status {
+            return Err(color_eyre::eyre::eyre!(
+                "Rebalance transaction failed for vault {}. TX Hash: {},  Error: {:?}",
+                vault_address,
+                rebalnce_tx_hash,
+                rebalnce_reciept
+            ));
+        } else {
+            info!(
+                "Rebalance transaction succeeded for vault {}. TX Hash: {}",
+                vault_address, rebalnce_tx_hash
+            );
+        }
+    } else {
+        warn!(
+            "Execution is disabled. Skipping rebalance for vault {}",
+            vault_address
         );
     }
 
