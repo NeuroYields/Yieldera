@@ -6,13 +6,14 @@ import AppRouter from "./AppRouter";
 import "./App.css";
 import { ToastProvider } from "./components/ui/ToastProvider";
 import "./styles/toast.css";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <AppRouter />
       <ToastProvider />
-    </>
+    </ErrorBoundary>
   );
 }
 

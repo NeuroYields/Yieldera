@@ -11,6 +11,10 @@ import {
   YIELDERA_CONTRACT_ID,
 } from "../../../config/constants";
 import { toast } from "../../../hooks/useToastify";
+import {
+  getMetaMaskErrorMessage,
+  checkMetaMaskInstallation,
+} from "../../../utils/metamaskHelpers";
 
 const currentNetworkConfig = appConfig.networks.testnet;
 
@@ -21,7 +25,10 @@ export const switchToHederaNetwork = async (ethereum: any) => {
       params: [{ chainId: currentNetworkConfig.chainId }], // chainId must be in hexadecimal numbers
     });
   } catch (error: any) {
+    console.error("Network switch error:", error);
+
     if (error.code === 4902) {
+      // Chain not added, try to add it
       try {
         await ethereum.request({
           method: "wallet_addEthereumChain",
@@ -38,18 +45,24 @@ export const switchToHederaNetwork = async (ethereum: any) => {
             },
           ],
         });
-      } catch (addError) {
-        console.error(addError);
+      } catch (addError: any) {
+        console.error("Failed to add Hedera network:", addError);
+        const errorMessage = getMetaMaskErrorMessage(addError);
+        throw new Error(`Failed to add Hedera network: ${errorMessage}`);
       }
+    } else {
+      const errorMessage = getMetaMaskErrorMessage(error);
+      throw new Error(`Failed to switch to Hedera network: ${errorMessage}`);
     }
-    console.error(error);
   }
 };
 
 const { ethereum } = window as any;
 const getProvider = () => {
   if (!ethereum) {
-    throw new Error("Metamask is not installed! Go install the extension!");
+    throw new Error(
+      "MetaMask is not installed! Please install the MetaMask extension."
+    );
   }
 
   return new ethers.providers.Web3Provider(ethereum);
@@ -58,6 +71,11 @@ const getProvider = () => {
 // returns a list of accounts
 // otherwise empty array
 export const connectToMetamask = async () => {
+  // Check MetaMask installation first and show toast to user
+  if (!checkMetaMaskInstallation(true)) {
+    throw new Error("MetaMask is not installed or properly configured.");
+  }
+
   const provider = getProvider();
 
   // keep track of accounts returned
@@ -66,13 +84,26 @@ export const connectToMetamask = async () => {
   try {
     await switchToHederaNetwork(ethereum);
     accounts = await provider.send("eth_requestAccounts", []);
-  } catch (error: any) {
-    if (error.code === 4001) {
-      // EIP-1193 userRejectedRequest error
-      console.warn("Please connect to Metamask.");
+
+    if (accounts.length > 0) {
+      toast.success("Successfully connected to MetaMask!");
     } else {
-      console.error(error);
+      toast.warning("No accounts found. Please ensure MetaMask is unlocked.");
     }
+  } catch (error: any) {
+    console.error("MetaMask connection error:", error);
+
+    const errorMessage = getMetaMaskErrorMessage(error);
+
+    if (error.code === 4001) {
+      // User rejected the request
+      toast.warning("Connection to MetaMask was cancelled by the user.");
+    } else {
+      toast.error(`Failed to connect to MetaMask: ${errorMessage}`);
+    }
+
+    // Re-throw the error with a proper message for upstream handling
+    throw new Error(errorMessage);
   }
 
   return accounts;
@@ -449,13 +480,19 @@ export const MetaMaskClient = () => {
     // set the account address if already connected
     try {
       const provider = getProvider();
-      provider.listAccounts().then((signers) => {
-        if (signers.length !== 0) {
-          setMetamaskAccountAddress(signers[0]);
-        } else {
+      provider
+        .listAccounts()
+        .then((signers) => {
+          if (signers.length !== 0) {
+            setMetamaskAccountAddress(signers[0]);
+          } else {
+            setMetamaskAccountAddress("");
+          }
+        })
+        .catch((error: any) => {
+          console.error("Failed to get MetaMask accounts:", error);
           setMetamaskAccountAddress("");
-        }
-      });
+        });
 
       // listen for account changes and update the account address
       ethereum.on("accountsChanged", (accounts: string[]) => {
@@ -471,7 +508,11 @@ export const MetaMaskClient = () => {
         ethereum.removeAllListeners("accountsChanged");
       };
     } catch (error: any) {
-      console.error(error.message ? error.message : error);
+      console.error(
+        "MetaMask initialization error:",
+        error?.message || error?.reason || error
+      );
+      setMetamaskAccountAddress("");
     }
   }, [setMetamaskAccountAddress]);
 
