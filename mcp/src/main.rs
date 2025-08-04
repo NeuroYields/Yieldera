@@ -25,6 +25,8 @@ async fn main() -> Result<()> {
 #[cfg(feature = "server")]
 async fn start() -> Result<()> {
     // Start calculator server
+
+    use crate::tools::balance::GetHbarBalanceTool;
     let mcp_server_protocol = Server::builder(
         "hedera_mcp".to_string(),
         "1.0".to_string(),
@@ -38,6 +40,7 @@ async fn start() -> Result<()> {
     })
     .register_tool(AddTool::tool(), AddTool::call())
     .register_tool(SubTool::tool(), SubTool::call())
+    .register_tool(GetHbarBalanceTool::tool(), GetHbarBalanceTool::call())
     .build();
 
     let mcp_server_transport =
