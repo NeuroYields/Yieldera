@@ -360,6 +360,7 @@ mod test {
                 token_out: vault_details.pool.token0,
                 is_swap_0_to_1: false,
                 max_amount_in,
+                formatted_max_amount_in: exess1.abs(),
             };
         } else if exess1 < 0.0 {
             let exact_amount_out = exess1.abs();
@@ -381,6 +382,7 @@ mod test {
                 token_out: vault_details.pool.token1,
                 is_swap_0_to_1: true,
                 max_amount_in,
+                formatted_max_amount_in: exess0.abs(),
             };
         } else {
             // No need to swap
@@ -391,6 +393,7 @@ mod test {
                 token_out: vault_details.pool.token1,
                 is_swap_0_to_1: true,
                 max_amount_in: U256::ZERO,
+                formatted_max_amount_in: 0.0,
             };
         }
 

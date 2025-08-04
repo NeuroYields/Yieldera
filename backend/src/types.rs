@@ -117,6 +117,7 @@ pub struct PrepareSwapArgs {
     pub token_out: Token,
     pub is_swap_0_to_1: bool,
     pub max_amount_in: U256,
+    pub formatted_max_amount_in: f64,
 }
 
 /// Top-level config struct matching the TOML file structure
