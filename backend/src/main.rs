@@ -70,8 +70,8 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Start the http server
-    info!("Starting Http Server at http://127.0.0.1:8080");
-    info!("Starting SWAGGER Server at http://127.0.0.1:8080/swagger-ui/");
+    info!("Starting Http Server at http://127.0.0.1:8090");
+    info!("Starting SWAGGER Server at http://127.0.0.1:8090/swagger-ui/");
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -91,7 +91,7 @@ async fn main() -> std::io::Result<()> {
 
         app.service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", app_api))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", 8090))?
     .run()
     .await
 }
@@ -143,7 +143,7 @@ mod test {
 
         println!("{:#?}", vault_details);
 
-        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 0.5, 1.0).await?;
+        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 10.0, 0.0).await?;
 
         Ok(())
     }

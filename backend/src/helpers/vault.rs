@@ -320,6 +320,7 @@ where
     let deposit_tx = vault_contract
         .deposit(deposit0, deposit1, provider.default_signer_address())
         .value(value_to_send)
+        .gas(15_000_000)
         .send()
         .await?;
 
