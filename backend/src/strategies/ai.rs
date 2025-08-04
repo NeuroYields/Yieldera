@@ -9,6 +9,7 @@ use crate::{
 use color_eyre::eyre::Result;
 
 use rig::{client::ProviderClient, completion::Prompt, providers::gemini};
+use serde_json::json;
 use tokio::time::Instant;
 use tracing::{debug, info};
 
@@ -62,6 +63,7 @@ You are an advanced strategist for an automated liquidity manager. Your job is t
 * Whether the current liquidity position needs rebalancing.
 * PLease if the current position prices are good even if it is not very optimal, Don't rebalance the position and just keep it as it is to avoid uneessary fees.
 * If yes, what is the **optimal price range** (in terms of **actual price values**, not ticks) to maximize fee income, maintain capital efficiency, and minimize risk.
+* If current position is very approach to the best range, don't rebalance the position and just keep it as it is to avoid unecessary fees.
 
 ---
 
@@ -83,7 +85,7 @@ You are an advanced strategist for an automated liquidity manager. Your job is t
   
   * Tick spacing: `tick_spacing`
   * Pool fee tier: `0.05% | 0.3% | 1%`
-  * Typical rebalance frequency: Every 1 hour if the estimated earnings are very positive(cause rebalances on hedera are not that cheap so we want to rebalance only when we have a profit that is worth more than the rebalance fees and the gas fees).
+  * Typical rebalance frequency: Every 1 day if the estimated earnings are very positive(cause rebalances on hedera are not that cheap so we want to rebalance only when we have a profit that is worth more than the rebalance fees and the gas fees).
   * Strategic goal: Maximize earning fees with very narrow ranges if the market is not very volatile.
 
 ---
@@ -138,9 +140,14 @@ You are an advanced strategist for an automated liquidity manager. Your job is t
     let ai_client = gemini::Client::from_env();
 
     let ai_agent = ai_client
-        .agent("gemini-2.5-flash")
+        .agent("gemini-2.0-flash")
         .preamble(ai_instruction_prompt)
         .temperature(0.0)
+        .additional_params(json!({
+            "thinkingConfig": {
+                "thinkingBudget": 0,
+            }
+        }))
         .build();
 
     let vault_tick_spacing = vault_details.pool.tick_spacing;

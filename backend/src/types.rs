@@ -42,6 +42,8 @@ pub struct VaultDetails {
     pub upper_tick: i32,
     pub is_active: bool,
     pub is_vault_tokens_associated: bool,
+    pub position: Position,
+    pub tvl: VaultTVL,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -74,19 +76,29 @@ pub struct TickRange {
     pub upper_tick: i32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Position {
-    pub id: U256,
-    pub token0: Address,
-    pub token1: Address,
-    pub fee: u32,
     pub tick_lower: i32,
     pub tick_upper: i32,
     pub liquidity: u128,
-    pub fee_growth_inside0_last_x128: U256,
-    pub fee_growth_inside1_last_x128: U256,
-    pub tokens_owed0: u128,
-    pub tokens_owed1: u128,
+    pub amount0: f64,
+    pub amount1: f64,
+    pub fees0: f64,
+    pub fees1: f64,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            tick_lower: 0,
+            tick_upper: 0,
+            liquidity: 0,
+            amount0: 0.0,
+            amount1: 0.0,
+            fees0: 0.0,
+            fees1: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -167,4 +179,10 @@ pub struct AiStrategyResponse {
 pub struct PriceRange {
     pub lower_price: f64,
     pub upper_price: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct VaultTVL {
+    pub tvl0: f64,
+    pub tvl1: f64,
 }

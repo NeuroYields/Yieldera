@@ -75,4 +75,4 @@ pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
 
 // Other constants
 pub const FEE_FACTOR: f64 = 10_000.0;
-pub const MONITOR_VAULT_INTERVAL_SECONDS: u64 = 60 * 5; // 1 hour in seconds
+pub const MONITOR_VAULT_INTERVAL_SECONDS: u64 = 60 * 1; // 1 hour in seconds

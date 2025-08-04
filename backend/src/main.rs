@@ -6,6 +6,7 @@ mod state;
 mod strategies;
 mod types;
 
+use actix_cors::Cors;
 use actix_web::{App, HttpServer, web};
 
 use tracing::{error, info};
@@ -30,7 +31,7 @@ async fn main() -> std::io::Result<()> {
     let file_layer = fmt::layer().with_writer(file_writer).with_ansi(false); // don't add colors to the file logs
 
     // 🔥 Only accept logs that match your crate
-    let filter = EnvFilter::new("yieldera=debug");
+    let filter = EnvFilter::new("yieldera=trace");
 
     // Combine both
     tracing_subscriber::registry()
@@ -73,7 +74,13 @@ async fn main() -> std::io::Result<()> {
     info!("Starting SWAGGER Server at http://127.0.0.1:8080/swagger-ui/");
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
+
         let (app, app_api) = App::new()
+            .wrap(cors)
             .into_utoipa_app()
             .app_data(web::Data::clone(&app_state))
             .service(api::get_index_service)
@@ -132,12 +139,11 @@ mod test {
         let contract_address = CONFIG.toml_config.vaults[0].as_str();
         // let contract_address = "0xA5B1102CF31e71b59544BD648EE1fC293B043bE0";
 
-        let vault_details =
-            core::vault::get_vault_details(&evm_provider, contract_address).await?;
+        let vault_details = core::vault::get_vault_details(&evm_provider, contract_address).await?;
 
         println!("{:#?}", vault_details);
 
-        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 0.0, 0.1).await?;
+        helpers::vault::deposit_tokens_to_vault(&evm_provider, &vault_details, 0.5, 1.0).await?;
 
         Ok(())
     }
