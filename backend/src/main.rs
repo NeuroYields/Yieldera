@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
     let file_layer = fmt::layer().with_writer(file_writer).with_ansi(false); // don't add colors to the file logs
 
     // 🔥 Only accept logs that match your crate
-    let filter = EnvFilter::new("yieldera=debug");
+    let filter = EnvFilter::new("yieldera=trace");
 
     // Combine both
     tracing_subscriber::registry()

@@ -154,7 +154,7 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
     }
 
     // 4. Update the vault details in the app state after rebalance
-    core::vault::update_vault_after_rebalance(&app_state.evm_provider, &mut vault_details).await?;
+    core::vault::update_vault_live(&app_state.evm_provider, &mut vault_details).await?;
 
     Ok(())
 }

@@ -7,7 +7,7 @@ use alloy::{
 };
 use alloy_sol_types::SolValue;
 use color_eyre::eyre::Result;
-use tracing::info;
+use tracing::{info, trace};
 
 use crate::{
     config::{CONFIG, FEE_FACTOR},
@@ -287,31 +287,7 @@ pub async fn update_vault_live<P>(provider: &P, vault: &mut VaultDetails) -> Res
 where
     P: Provider + WalletProvider,
 {
-    let vault_address = Address::from_str(vault.address.as_str())?;
-
-    let vault_contract = YielderaVault::new(vault_address, provider);
-
-    let current_tick = vault_contract.currentTick().call().await?.as_i32();
-
-    // Calculate the pool price1 and price0 by using the current tick
-    let price1 = helpers::math::tick_to_price(
-        current_tick,
-        vault.pool.token0.decimals,
-        vault.pool.token1.decimals,
-    )?;
-    let price0 = 1.0 / price1;
-
-    vault.pool.current_tick = current_tick;
-    vault.pool.price1 = price1;
-    vault.pool.price0 = price0;
-
-    Ok(())
-}
-
-pub async fn update_vault_after_rebalance<P>(provider: &P, vault: &mut VaultDetails) -> Result<()>
-where
-    P: Provider + WalletProvider,
-{
+    trace!("Updating vault live data...");
     let vault_address = Address::from_str(vault.address.as_str())?;
 
     let vault_contract = YielderaVault::new(vault_address, provider);
@@ -319,7 +295,15 @@ where
     let current_tick = vault_contract.currentTick().call().await?.as_i32();
     let lower_tick = vault_contract.lowerTick().call().await?;
     let upper_tick = vault_contract.upperTick().call().await?;
-    let is_active = vault_contract.isActive().call().await?;
+
+    let pool_contract = UniswapV3Pool::new(vault.pool.address.parse()?, provider);
+
+    let slot0 = pool_contract.slot0().call().await?;
+
+    let sqrt_price_x96 = U256::from_str(slot0.sqrtPriceX96.to_string().as_str())?;
+
+    let token0_decimals = vault.pool.token0.decimals;
+    let token1_decimals = vault.pool.token1.decimals;
 
     // Calculate the pool price1 and price0 by using the current tick
     let price1 = helpers::math::tick_to_price(
@@ -329,12 +313,80 @@ where
     )?;
     let price0 = 1.0 / price1;
 
+    // Fetch position details
+
+    let is_active = vault_contract.isActive().call().await?;
+
+    let value = (vault_address, lower_tick, upper_tick);
+    let res_value = value.abi_encode_packed();
+
+    let position_key = keccak256(res_value);
+
+    let position_details = pool_contract.positions(position_key).call().await?;
+
+    let liquidity = position_details.liquidity;
+    let tokens_owed_0 = position_details.tokensOwed0;
+    let tokens_owed_1 = position_details.tokensOwed1;
+
+    let lower_tick_sqrt_price =
+        helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(lower_tick.as_i32())?;
+    let upper_tick_sqrt_price =
+        helpers::math::uniswap_v3::tick_math::get_sqrt_ratio_at_tick(upper_tick.as_i32())?;
+
+    let (amount0, amount1) = helpers::math::uniswap_v3::liquidity_math::get_amounts_for_liquidity(
+        sqrt_price_x96,
+        lower_tick_sqrt_price,
+        upper_tick_sqrt_price,
+        liquidity,
+    )?;
+
+    let formatted_amount0: f64 = format_units(amount0, token0_decimals)?.parse()?;
+    let formatted_amount1: f64 = format_units(amount1, token1_decimals)?.parse()?;
+    let formatted_tokens_owed_0: f64 = format_units(tokens_owed_0, token0_decimals)?.parse()?;
+    let formatted_tokens_owed_1: f64 = format_units(tokens_owed_1, token1_decimals)?.parse()?;
+
+    let mut position = Position::default();
+
+    if is_active {
+        position = Position {
+            tick_lower: lower_tick.as_i32(),
+            tick_upper: upper_tick.as_i32(),
+            liquidity,
+            amount0: formatted_amount0,
+            amount1: formatted_amount1,
+            fees0: formatted_tokens_owed_0,
+            fees1: formatted_tokens_owed_1,
+        };
+    }
+
+    // Calculate the TVL
+    let token0 = ERC20::new(vault.pool.token0.address.parse()?, provider);
+    let token1 = ERC20::new(vault.pool.token1.address.parse()?, provider);
+
+    let balance0 = token0.balanceOf(vault_address).call().await?;
+
+    let balance1 = token1.balanceOf(vault_address).call().await?;
+
+    let balance0: f64 = format_units(balance0, token0_decimals)?.parse()?;
+    let balance1: f64 = format_units(balance1, token1_decimals)?.parse()?;
+
+    let vault_tvl0 = position.amount0 + position.fees0 + balance0;
+    let vault_tvl1 = position.amount1 + position.fees1 + balance1;
+
+    let tvl = VaultTVL {
+        tvl0: vault_tvl0,
+        tvl1: vault_tvl1,
+    };
+
     vault.pool.current_tick = current_tick;
-    vault.pool.price1 = price1;
-    vault.pool.price0 = price0;
+    vault.pool.sqrt_price_x96 = sqrt_price_x96;
     vault.lower_tick = lower_tick.as_i32();
     vault.upper_tick = upper_tick.as_i32();
     vault.is_active = is_active;
+    vault.pool.price1 = price1;
+    vault.pool.price0 = price0;
+    vault.position = position;
+    vault.tvl = tvl;
 
     Ok(())
 }
