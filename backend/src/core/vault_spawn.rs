@@ -94,28 +94,47 @@ async fn start_rebalance_strategy(vault_address: &str, app_state: &WebAppState) 
             vault_address
         );
 
+        // Check if teh vault is out of range by checking the current tick
+        let current_tick = vault_details.pool.current_tick;
+        let lower_tick = vault_details.lower_tick;
+        let upper_tick = vault_details.upper_tick;
+
+        let is_out_of_range = current_tick < lower_tick || current_tick > upper_tick;
+
+        // If the vault is not out of range, we skip the rebalance if teh fees are very low
+        if !is_out_of_range {
+            let fees0 = vault_details.position.fees0;
+            let fees1 = vault_details.position.fees1;
+
+            if fees0 < 0.01 || fees1 < 0.01 {
+                warn!(
+                    "Vault {} is still in range and generated fees are very low. Skipping AI strategy and rebalance.",
+                    vault_address
+                );
+                return Ok(());
+            }
+        }
+
         // TEST ERROR
         // return Err(color_eyre::eyre::eyre!(
         //     "Vault {} already has a position. Send TEST ERROR",
         //     vault_address
         // ));
 
-        // Estimate balances after removing the existant liquidity by calling getCurrent position, then call the rebalance function
-        let vault_contract = YielderaVault::new(
-            Address::from_str(vault_details.address.as_str())?,
-            &app_state.evm_provider,
-        );
+        // Estimate balances after removing the existant liquidity bygetting the vault tvl, then call the rebalance function
+        let estim_balance0 = vault_details.tvl.tvl0;
+        let estim_balance1 = vault_details.tvl.tvl1;
+        let estim_balance0_u256 = parse_units(
+            estim_balance0.to_string().as_str(),
+            vault_details.pool.token0.decimals,
+        )?
+        .into();
 
-        let current_postion = vault_contract.getCurrentPosition().call().await?;
-
-        let estim_balance0_u256 =
-            current_postion.amount0 + vault_token_balances.token0_balance_u256;
-        let estim_balance1_u256 =
-            current_postion.amount1 + vault_token_balances.token1_balance_u256;
-        let estim_balance0: f64 =
-            format_units(estim_balance0_u256, vault_details.pool.token0.decimals)?.parse()?;
-        let estim_balance1: f64 =
-            format_units(estim_balance1_u256, vault_details.pool.token1.decimals)?.parse()?;
+        let estim_balance1_u256 = parse_units(
+            estim_balance1.to_string().as_str(),
+            vault_details.pool.token1.decimals,
+        )?
+        .into();
 
         let vault_token_balances = VaultTokenBalances {
             token0_balance: estim_balance0,
