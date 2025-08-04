@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     config::{CONFIG, MONITOR_VAULT_INTERVAL_SECONDS},
-    core::{self, vault::YielderaVault},
+    core::{self, csv_logger::RebalanceLogEntry, vault::YielderaVault},
     helpers::{self},
     strategies,
     types::{PrepareSwapArgs, VaultDetails, VaultTokenBalances, WebAppState},
@@ -286,6 +286,7 @@ pub async fn rebalance_vault(
             token_out: vault_details.pool.token0.clone(),
             is_swap_0_to_1: false,
             max_amount_in,
+            formatted_max_amount_in: exess1.abs(),
         };
     } else if exess1 < 0.0 {
         let exact_amount_out = exess1.abs();
@@ -307,6 +308,7 @@ pub async fn rebalance_vault(
             token_out: vault_details.pool.token1.clone(),
             is_swap_0_to_1: true,
             max_amount_in,
+            formatted_max_amount_in: exess0.abs(),
         };
     } else {
         // No need to swap
@@ -317,6 +319,7 @@ pub async fn rebalance_vault(
             token_out: vault_details.pool.token1.clone(),
             is_swap_0_to_1: true,
             max_amount_in: U256::ZERO,
+            formatted_max_amount_in: 0.0,
         };
     }
 
@@ -359,6 +362,32 @@ pub async fn rebalance_vault(
         );
 
         let rebalnce_tx_status = rebalnce_reciept.status();
+
+        core::csv_logger::log_rebalance_result_to_csv(RebalanceLogEntry {
+            timestamp: chrono::Utc::now().to_string(),
+            vault_address: vault_address.to_string(),
+            transaction_hash: rebalnce_tx_hash.to_string(),
+            transaction_status: if rebalnce_tx_status {
+                "Success".to_string()
+            } else {
+                "Failed".to_string()
+            },
+            tvl0: vault_details.tvl.tvl0,
+            tvl1: vault_details.tvl.tvl1,
+            fees0_bef: vault_details.position.fees0,
+            fees1_bef: vault_details.position.fees1,
+            current_tick: vault_details.pool.current_tick,
+            lower_tick_bef: vault_details.lower_tick,
+            upper_tick_bef: vault_details.upper_tick,
+            lower_tick_aft: lower_tick.as_i32(),
+            upper_tick_aft: upper_tick.as_i32(),
+            liquidity_bef: vault_details.position.liquidity,
+            amount0_bef: vault_details.position.amount0,
+            amount1_bef: vault_details.position.amount1,
+            swap_amount_out: swap_arg.exact_amount_out,
+            swap_max_amount_in: swap_arg.formatted_max_amount_in,
+            is_swap_0_to_1: swap_arg.is_swap_0_to_1,
+        })?;
 
         if !rebalnce_tx_status {
             return Err(color_eyre::eyre::eyre!(
