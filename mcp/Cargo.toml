@@ -1,0 +1,20 @@
+[package]
+name = "mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+color-eyre = "0.6.5"
+mcp-core = { version = "0.1.50", features = ["sse"] }
+mcp-core-macros = "0.1.30"
+rig-core = { version = "0.16.0", features = ["rmcp"] }
+schemars = "0.8"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.142"
+tokio = { version = "1.47.1", features = ["full"] }
+
+
+[features]
+default = ["server"]
+client = []
+server = []
