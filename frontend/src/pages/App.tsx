@@ -13,44 +13,11 @@ import {
   TrendingUp,
   DollarSign,
   ArrowUpRight,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-// Mock vault data
-const mockVaults = [
-  {
-    id: "vault1",
-    name: "HBAR/USDC Vault",
-    symbol: "yHBAR-USDC",
-    address: "0.0.123456",
-    pool: {
-      token0: { symbol: "HBAR", image: "/images/whbar.png" },
-      token1: { symbol: "USDC", image: "/images/tokens/usdc.png" },
-      fee: 0.3,
-      current_tick: 195420,
-    },
-    total_supply: 1250000,
-    tvl: "$2.4M",
-    apy: "24.5%",
-    status: "SaucerSwap",
-  },
-  {
-    id: "vault2",
-    name: "SAUCE/HBAR Vault",
-    symbol: "ySAUCE-HBAR",
-    address: "0.0.789012",
-    pool: {
-      token0: { symbol: "SAUCE", image: "/images/tokens/sauce.webp" },
-      token1: { symbol: "HBAR", image: "/images/whbar.png" },
-      fee: 0.5,
-      current_tick: 87650,
-    },
-    total_supply: 850000,
-    tvl: "$1.8M",
-    apy: "31.2%",
-    status: "Bonzo",
-  },
-];
+import { useVaults } from "../hooks/useVaults";
 
 // Mock activity feed
 const mockActivities = [
@@ -82,6 +49,10 @@ export default function App() {
   const navigate = useNavigate();
   const { walletInterface, accountId } = useWalletInterface();
   const [open, setOpen] = useState(false);
+
+  // Fetch vault data from API
+  const { data: vaults, isLoading, isError, error } = useVaults();
+
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -299,109 +270,147 @@ export default function App() {
 
           {/* Right Column - Vaults */}
           <div className="space-y-4">
-            {mockVaults.map((vault, index) => (
-              <div
-                key={vault.id}
-                className="relative neon-border bg-card/50 backdrop-blur-sm p-4 hover:shadow-neon-green transition-all duration-300 group"
-              >
-                <div className="absolute -top-3 left-4 bg-background px-2">
-                  <span className="font-terminal text-xs text-white uppercase tracking-wider">
-                    VAULT{index + 1}
-                  </span>
-                </div>
-                <div className="space-y-3 mt-2">
-                  {/* Vault Status */}
-                  <div className="flex justify-end">
-                    <div
-                      className={`px-2 py-1 rounded text-xs font-mono ${
-                        vault.status === "SaucerSwap"
-                          ? "bg-primary/20 text-primary border border-primary/50"
-                          : "bg-accent/20 text-accent border border-accent/50"
-                      }`}
-                    >
-                      {vault.status}
-                    </div>
-                  </div>
+            {/* Loading State */}
+            {isLoading && (
+              <div className="relative neon-border bg-card/50 backdrop-blur-sm p-8 text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-sm font-mono text-white/80">
+                  Loading vaults...
+                </p>
+              </div>
+            )}
 
-                  {/* Token Pair */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      <img
-                        src={vault.pool.token0.image}
-                        alt={vault.pool.token0.symbol}
-                        className="w-6 h-6 rounded-full border border-primary/50"
-                        onError={(e) => {
-                          e.currentTarget.src =
-                            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMzOWZmMTQiLz4KPHRleHQgeD0iMTIiIHk9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMGQwZDBkIiBmb250LXNpemU9IjEwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIj4/PC90ZXh0Pgo8L3N2Zz4K";
-                        }}
-                      />
-                      <img
-                        src={vault.pool.token1.image}
-                        alt={vault.pool.token1.symbol}
-                        className="w-6 h-6 rounded-full border border-secondary/50"
-                        onError={(e) => {
-                          e.currentTarget.src =
-                            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMwMGNjZmYiLz4KPHRleHQgeD0iMTIiIHk9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMGQwZDBkIiBmb250LXNpemU9IjEwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIj4/PC90ZXh0Pgo8L3N2Zz4K";
-                        }}
-                      />
-                    </div>
-                    <span className="font-mono text-sm text-white font-medium">
-                      {vault.pool.token0.symbol}/{vault.pool.token1.symbol}
+            {/* Error State */}
+            {isError && (
+              <div className="relative neon-border bg-card/50 backdrop-blur-sm p-8 text-center">
+                <AlertCircle className="w-8 h-8 mx-auto mb-4 text-red-400" />
+                <p className="text-sm font-mono text-white/80 mb-2">
+                  Failed to load vaults
+                </p>
+                <p className="text-xs font-mono text-white/60">
+                  {error instanceof Error ? error.message : "Unknown error"}
+                </p>
+              </div>
+            )}
+
+            {/* Vault Data */}
+            {vaults &&
+              vaults.length > 0 &&
+              vaults.map((vault, index) => (
+                <div
+                  key={vault.id}
+                  className="relative neon-border bg-card/50 backdrop-blur-sm p-4 hover:shadow-neon-green transition-all duration-300 group"
+                >
+                  <div className="absolute -top-3 left-4 bg-background px-2">
+                    <span className="font-terminal text-xs text-white uppercase tracking-wider">
+                      {vault.name || `Vault ${index + 1}`}
                     </span>
                   </div>
+                  <div className="space-y-3 mt-2">
+                    {/* Vault Status */}
+                    <div className="flex justify-end">
+                      <div
+                        className={`px-2 py-1 rounded text-xs font-mono ${
+                          vault.status === "SaucerSwap"
+                            ? "bg-primary/20 text-primary border border-primary/50"
+                            : vault.status === "Bonzo"
+                            ? "bg-accent/20 text-accent border border-accent/50"
+                            : "bg-secondary/20 text-secondary border border-secondary/50"
+                        }`}
+                      >
+                        {vault.status}
+                      </div>
+                    </div>
 
-                  {/* Vault Stats */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-white/60 font-mono">
-                        TVL
-                      </span>
-                      <span className="text-sm font-mono text-white font-semibold">
-                        {vault.tvl}
+                    {/* Token Pair */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        <img
+                          src={vault.pool.token0.image}
+                          alt={vault.pool.token0.symbol}
+                          className="w-6 h-6 rounded-full border border-primary/50"
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMzOWZmMTQiLz4KPHRleHQgeD0iMTIiIHk9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMGQwZDBkIiBmb250LXNpemU9IjEwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIj4/PC90ZXh0Pgo8L3N2Zz4K";
+                          }}
+                        />
+                        <img
+                          src={vault.pool.token1.image}
+                          alt={vault.pool.token1.symbol}
+                          className="w-6 h-6 rounded-full border border-secondary/50"
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMwMGNjZmYiLz4KPHRleHQgeD0iMTIiIHk9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMGQwZDBkIiBmb250LXNpemU9IjEwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIj4/PC90ZXh0Pgo8L3N2Zz4K";
+                          }}
+                        />
+                      </div>
+                      <span className="font-mono text-sm text-white font-medium">
+                        {vault.pool.token0.symbol}/{vault.pool.token1.symbol}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-white/60 font-mono">
-                        APY
-                      </span>
-                      <span className="text-sm font-mono text-accent font-semibold">
-                        {vault.apy}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-white/60 font-mono">
-                        Fee
-                      </span>
-                      <span className="text-sm font-mono text-secondary font-semibold">
-                        {vault.pool.fee}%
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="text-xs flex items-center justify-center gap-1"
-                      onClick={() => navigate(`/deposit/${vault.address}`)}
-                    >
-                      <DollarSign className="w-3 h-3" />
-                      Deposit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="text-xs flex items-center justify-center gap-1"
-                      onClick={() => navigate(`/withdraw/${vault.address}`)}
-                    >
-                      <ArrowUpRight className="w-3 h-3" />
-                      Withdraw
-                    </Button>
+                    {/* Vault Stats */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-white/60 font-mono">
+                          TVL
+                        </span>
+                        <span className="text-sm font-mono text-white font-semibold">
+                          {vault.tvl}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-white/60 font-mono">
+                          APY
+                        </span>
+                        <span className="text-sm font-mono text-accent font-semibold">
+                          {vault.apy}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-white/60 font-mono">
+                          Fee
+                        </span>
+                        <span className="text-sm font-mono text-secondary font-semibold">
+                          {vault.pool.fee}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-xs flex items-center justify-center gap-1"
+                        onClick={() => navigate(`/deposit/${vault.address}`)}
+                      >
+                        <DollarSign className="w-3 h-3" />
+                        Deposit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-xs flex items-center justify-center gap-1"
+                        onClick={() => navigate(`/withdraw/${vault.address}`)}
+                      >
+                        <ArrowUpRight className="w-3 h-3" />
+                        Withdraw
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              ))}
+
+            {/* No vaults found */}
+            {vaults && vaults.length === 0 && !isLoading && (
+              <div className="relative neon-border bg-card/50 backdrop-blur-sm p-8 text-center">
+                <TrendingUp className="w-8 h-8 mx-auto mb-4 text-white/40" />
+                <p className="text-sm font-mono text-white/80">
+                  No vaults available
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
