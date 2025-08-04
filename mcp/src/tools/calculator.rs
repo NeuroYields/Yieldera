@@ -4,7 +4,7 @@ use mcp_core_macros::{tool};
 use color_eyre::eyre::Result;
 
 #[tool(
-    name = "Add",
+    name = "add_numbers",
     description = "Add 2nd number to 1st",
     annotations(title = "Add Tool")
 )]
@@ -13,7 +13,7 @@ async fn add_tool(a: f64, b: f64) -> Result<ToolResponseContent> {
 }
 
 #[tool(
-    name = "Sub",
+    name = "sub_numbers",
     description = "Subtract 2nd number from 1st",
     annotations(read_only_hint = true)
 )]

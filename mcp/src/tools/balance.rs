@@ -11,7 +11,7 @@ use mcp_core::types::ToolResponseContent;
 use mcp_core_macros::{tool, tool_param};
 
 #[tool(
-    name = "Get Native Coin Balance (HBAR)",
+    name = "get_native_hbar_balance",
     description = "Get the native coin balance (HBAR) of an account",
     annotations(title = "Get Native Coin Balance (HBAR)")
 )]
