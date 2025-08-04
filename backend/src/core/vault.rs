@@ -12,7 +12,7 @@ use tracing::info;
 use crate::{
     config::{CONFIG, FEE_FACTOR},
     helpers,
-    types::{Pool, Position, Token, VaultDetails, VaultTokenBalances},
+    types::{Pool, Position, Token, VaultDetails, VaultTVL, VaultTokenBalances},
 };
 
 sol!(
@@ -168,6 +168,27 @@ where
         position = Position::default();
     }
 
+    let balance0 = token0
+        .balanceOf(Address::from_str(vault_address)?)
+        .call()
+        .await?;
+
+    let balance1 = token1
+        .balanceOf(Address::from_str(vault_address)?)
+        .call()
+        .await?;
+
+    let balance0: f64 = format_units(balance0, token0_decimals)?.parse()?;
+    let balance1: f64 = format_units(balance1, token1_decimals)?.parse()?;
+
+    let vault_tvl0 = position.amount0 + position.fees0 + balance0;
+    let vault_tvl1 = position.amount1 + position.fees1 + balance1;
+
+    let tvl = VaultTVL {
+        tvl0: vault_tvl0,
+        tvl1: vault_tvl1,
+    };
+
     Ok(VaultDetails {
         address: vault_address.to_string(),
         pool: Pool {
@@ -202,6 +223,7 @@ where
         is_active,
         is_vault_tokens_associated,
         position,
+        tvl,
     })
 }
 

@@ -15,7 +15,7 @@ use color_eyre::eyre::Result;
 use crate::{
     config::{FEE_FACTOR, HBAR_EVM_ADDRESS},
     helpers,
-    types::{Pool, Position, Token, VaultDetails, VaultTokenBalances},
+    types::{Pool, Position, Token, VaultDetails, VaultTVL, VaultTokenBalances},
 };
 
 sol!(
@@ -143,6 +143,10 @@ where
         is_active,
         is_vault_tokens_associated,
         position: Position::default(),
+        tvl: VaultTVL {
+            tvl0: 0.0,
+            tvl1: 0.0,
+        },
     })
 }
 

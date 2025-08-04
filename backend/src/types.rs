@@ -43,6 +43,7 @@ pub struct VaultDetails {
     pub is_active: bool,
     pub is_vault_tokens_associated: bool,
     pub position: Position,
+    pub tvl: VaultTVL,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -178,4 +179,10 @@ pub struct AiStrategyResponse {
 pub struct PriceRange {
     pub lower_price: f64,
     pub upper_price: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+pub struct VaultTVL {
+    pub tvl0: f64,
+    pub tvl1: f64,
 }
