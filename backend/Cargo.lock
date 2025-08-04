@@ -5524,6 +5524,7 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "alloy",
+ "alloy-sol-types",
  "color-eyre",
  "dashmap",
  "dotenvy",
