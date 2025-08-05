@@ -7,7 +7,8 @@ import { NetworkName } from "./type";
 
 export const env = {
   // API Configuration
-  API_BASE_URL: process.env.REACT_APP_API_BASE_URL || "http://localhost:8080",
+  API_BASE_URL:
+    process.env.REACT_APP_API_BASE_URL || "https://yieldera.eaglefi.io",
   API_TIMEOUT: parseInt(process.env.REACT_APP_API_TIMEOUT || "10000", 10),
 
   // Environment
@@ -21,7 +22,7 @@ export const env = {
 
   // Hedera Network Configuration (integrates with existing networks.ts)
   HEDERA_NETWORK: (process.env.REACT_APP_HEDERA_NETWORK ||
-    "testnet") as NetworkName,
+    "mainnet") as NetworkName,
 
   // App Configuration
   APP_NAME: process.env.REACT_APP_APP_NAME || "Yieldera",
