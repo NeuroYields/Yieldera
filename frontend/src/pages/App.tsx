@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { WalletSelectionDialog } from "../components/WalletSelectionDialog";
+import { TokenBalancesCard } from "../components/TokenBalancesCard";
 import { AccountId } from "@hashgraph/sdk";
 import { Card } from "../components/ui/card2";
 import { Button } from "../components/ui/Button";
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useVaults } from "../hooks/useVaults";
+import { useUserTokenBalances } from "../hooks/useUserTokenBalances";
 
 // Mock activity feed
 const mockActivities = [
@@ -52,6 +54,14 @@ export default function App() {
 
   // Fetch vault data from API
   const { data: vaults, isLoading, isError, error } = useVaults();
+
+  // Fetch user token balances
+  const {
+    balances: tokenBalances,
+    loading: balancesLoading,
+    error: balancesError,
+    refresh: refreshBalances,
+  } = useUserTokenBalances(vaults);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -151,11 +161,11 @@ export default function App() {
         </div>
 
         {/* Main Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-120px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-200px)]">
           {/* Left Column */}
           <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
             {/* Activity Feed */}
-            <div className="relative neon-border bg-card/50 backdrop-blur-sm p-4 h-48 flex-shrink-0">
+            <div className="relative neon-border bg-card/50 backdrop-blur-sm p-4 h-40 flex-shrink-0">
               <div className="absolute -top-3 left-4 bg-background px-2">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-primary" />
@@ -164,7 +174,7 @@ export default function App() {
                   </span>
                 </div>
               </div>
-              <div className="space-y-2 overflow-y-auto h-36 mt-2">
+              <div className="space-y-2 overflow-y-auto h-28 mt-2">
                 {activities.map((activity) => (
                   <div
                     key={activity.id}
@@ -268,8 +278,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* Right Column - Vaults */}
+          {/* Right Column - Token Balances and Vaults */}
           <div className="space-y-4">
+            {/* Token Balances Card */}
+            <TokenBalancesCard
+              balances={tokenBalances}
+              loading={balancesLoading}
+              error={balancesError}
+              onRefresh={refreshBalances}
+              isConnected={!!accountId}
+            />
+
             {/* Loading State */}
             {isLoading && (
               <div className="relative neon-border bg-card/50 backdrop-blur-sm p-8 text-center">
@@ -356,7 +375,11 @@ export default function App() {
                           TVL
                         </span>
                         <span className="text-sm font-mono text-white font-semibold">
-                          {vault.tvl}
+                          {typeof vault.tvl === "string"
+                            ? vault.tvl
+                            : vault.tvl && typeof vault.tvl === "object"
+                            ? `TVL0: ${vault.tvl.tvl0}, TVL1: ${vault.tvl.tvl1}`
+                            : ""}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">

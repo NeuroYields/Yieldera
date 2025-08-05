@@ -31,6 +31,25 @@ export interface BackendVaultResponse {
   lower_tick: number;
   upper_tick: number;
   is_active: boolean;
+  // TVL data might be provided in different structures
+  tvl0?: number;
+  tvl1?: number;
+  tvl?:
+    | {
+        tvl0: number;
+        tvl1: number;
+      }
+    | string;
+  // Position data from backend
+  position?: {
+    tick_lower: number;
+    tick_upper: number;
+    liquidity: number;
+    amount0: number;
+    amount1: number;
+    fees0: number;
+    fees1: number;
+  };
 }
 
 // Frontend Vault Types (transformed from backend response)
@@ -68,10 +87,23 @@ export interface VaultData {
   lowerTick: number;
   upperTick: number;
   isActive: boolean;
-  // Mock data for now - these will be calculated later
-  tvl: string;
+  // TVL data structure to match backend response
+  tvl:
+    | string
+    | {
+        tvl0: number;
+        tvl1: number;
+      };
   apy: string;
   status: "SaucerSwap" | "Bonzo" | "Etaswap";
+  // Optional position data that might come from backend
+  position?: {
+    liquidity: number;
+    fees0: number;
+    fees1: number;
+    amount0?: number;
+    amount1?: number;
+  };
 }
 
 // Token icon mapping
@@ -80,14 +112,6 @@ export const TOKEN_ICONS: Record<string, string> = {
   WHBAR: "/images/whbar.png",
   SAUCE: "/images/tokens/sauce.webp",
   USDC: "/images/tokens/usdc.png",
-};
-
-// DEX status mapping based on pool data or other criteria
-export const DEX_STATUS_MAP: Record<
-  string,
-  "SaucerSwap" | "Bonzo" | "Etaswap"
-> = {
-  // This can be determined by pool address or other criteria
-  // For now, we'll use a simple mapping
-  default: "SaucerSwap",
+  DAI: "/images/tokens/dai.svg",
+  USDT: "/images/tokens/usdt.png",
 };

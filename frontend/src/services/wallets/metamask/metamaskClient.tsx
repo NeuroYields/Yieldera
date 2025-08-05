@@ -3,20 +3,17 @@ import { TokenId } from "@hashgraph/sdk/lib/transaction/TransactionRecord";
 import { ethers } from "ethers";
 import { useContext, useEffect } from "react";
 import { appConfig } from "../../../config";
+import { env } from "../../../config/env";
 import { MetamaskContext } from "../../../contexts/MetamaskContext";
 import { ContractFunctionParameterBuilder } from "../contractFunctionParameterBuilder";
 import { WalletInterface } from "../walletInterface";
-import {
-  YIELDERA_CONTRACT_ADDRESS,
-  YIELDERA_CONTRACT_ID,
-} from "../../../config/constants";
 import { toast } from "../../../hooks/useToastify";
 import {
   getMetaMaskErrorMessage,
   checkMetaMaskInstallation,
 } from "../../../utils/metamaskHelpers";
 
-const currentNetworkConfig = appConfig.networks.testnet;
+const currentNetworkConfig = appConfig.networks[env.HEDERA_NETWORK];
 
 export const switchToHederaNetwork = async (ethereum: any) => {
   try {
@@ -408,11 +405,14 @@ class MetaMaskWallet implements WalletInterface {
     const provider = getProvider();
     const signer = await provider.getSigner();
 
-    //  vault contract
-    const isVaultContract = contractId.toString() === YIELDERA_CONTRACT_ID;
-    const contractAddress = isVaultContract
-      ? YIELDERA_CONTRACT_ADDRESS // Use vault EVM address from constants
-      : `0x${contractId.toEvmAddress()}`; // Use standard contract address
+    // Use the contract address directly from the contractId
+    // No special handling needed - the calling code should pass the correct contract ID
+    const contractAddress = `0x${contractId.toEvmAddress()}`;
+
+    console.log("=== CONTRACT EXECUTION DEBUG ===");
+    console.log("Contract ID:", contractId.toString());
+    console.log("Contract Address:", contractAddress);
+    console.log("Function:", functionName);
 
     // Build function signature and ABI
     const functionParams = functionParameters.buildAbiFunctionParams();

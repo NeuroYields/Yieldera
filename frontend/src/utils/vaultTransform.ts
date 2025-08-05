@@ -1,9 +1,4 @@
-import {
-  BackendVaultResponse,
-  VaultData,
-  TOKEN_ICONS,
-  DEX_STATUS_MAP,
-} from "../types/api";
+import { BackendVaultResponse, VaultData, TOKEN_ICONS } from "../types/api";
 
 // Mock TVL and APY data - these will be replaced with real calculations later
 const mockTvlData = ["$2.4M", "$1.8M", "$3.1M", "$1.2M", "$4.5M"];
@@ -13,7 +8,7 @@ const mockApyData = ["24.5%", "31.2%", "18.7%", "42.1%", "15.9%"];
  * Transform backend vault response to frontend vault data
  */
 export const transformVaultData = (
-  backendVault: BackendVaultResponse,
+  backendVault: BackendVaultResponse | any, // Use any temporarily to handle dynamic backend response
   index: number = 0
 ): VaultData => {
   // Handle WHBAR as HBAR for display
@@ -28,29 +23,38 @@ export const transformVaultData = (
       `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTIiIGZpbGw9IiMzOWZmMTQiLz4KPHRleHQgeD0iMTIiIHk9IjE2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMGQwZDBkIiBmb250LXNpemU9IjEwIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIj4/PC90ZXh0Pgo8L3N2Zz4K`,
   });
 
-  // Determine DEX status based on tokens or other criteria
-  const getDexStatus = (
-    vault: BackendVaultResponse
-  ): "SaucerSwap" | "Bonzo" | "Etaswap" => {
-    // Simple logic for now - can be enhanced based on actual criteria
-    const token0Symbol = vault.pool.token0.is_native_wrapper
-      ? "HBAR"
-      : vault.pool.token0.symbol;
-    const token1Symbol = vault.pool.token1.is_native_wrapper
-      ? "HBAR"
-      : vault.pool.token1.symbol;
-
-    if (token0Symbol === "SAUCE" || token1Symbol === "SAUCE") {
-      return "Bonzo";
-    } else if (token0Symbol === "HBAR" || token1Symbol === "HBAR") {
-      return "SaucerSwap";
-    } else {
-      return "Etaswap";
-    }
-  };
-
   const token0 = getDisplayToken(backendVault.pool.token0);
   const token1 = getDisplayToken(backendVault.pool.token1);
+
+  // Handle TVL data - check multiple possible structures from backend
+  console.log("=== TVL TRANSFORMATION DEBUG ===");
+  console.log("backendVault structure:", backendVault);
+  console.log("backendVault.tvl:", backendVault.tvl);
+  console.log("backendVault.total_supply:", backendVault.total_supply);
+  console.log("backendVault.position:", backendVault.position);
+
+  let tvlData;
+
+  // Check if TVL data is in the tvl object (as shown in the backend response)
+  if (
+    backendVault.tvl &&
+    typeof backendVault.tvl === "object" &&
+    backendVault.tvl.tvl0 !== undefined &&
+    backendVault.tvl.tvl1 !== undefined
+  ) {
+    tvlData = { tvl0: backendVault.tvl.tvl0, tvl1: backendVault.tvl.tvl1 };
+    console.log("Using tvl.tvl0/tvl1 from backend:", tvlData);
+  }
+  // Check if tvl0/tvl1 are directly on the vault object (fallback)
+  else if (backendVault.tvl0 !== undefined && backendVault.tvl1 !== undefined) {
+    tvlData = { tvl0: backendVault.tvl0, tvl1: backendVault.tvl1 };
+    console.log("Using direct tvl0/tvl1 from vault:", tvlData);
+  }
+  // Fallback to mock data
+  else {
+    tvlData = mockTvlData[index % mockTvlData.length];
+    console.log("Using fallback mock TVL:", tvlData);
+  }
 
   return {
     id: `vault_${backendVault.address}`,
@@ -72,10 +76,10 @@ export const transformVaultData = (
     lowerTick: backendVault.lower_tick,
     upperTick: backendVault.upper_tick,
     isActive: backendVault.is_active,
-    // Mock data for now
-    tvl: mockTvlData[index % mockTvlData.length],
-    apy: mockApyData[index % mockApyData.length],
-    status: getDexStatus(backendVault),
+    // Use real TVL data if available, otherwise fallback to mock
+    tvl: tvlData,
+    apy: mockApyData[index % mockApyData.length], // Keep mock APY for now
+    status: "SaucerSwap",
   };
 };
 
