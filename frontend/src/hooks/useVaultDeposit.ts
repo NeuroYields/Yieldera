@@ -8,6 +8,25 @@ import { toast } from "../hooks/useToastify";
 import { VaultData } from "../types/api";
 import { env } from "../config/env";
 
+// Helper function to check if error is user cancellation
+const isUserCancellation = (error: any): boolean => {
+  const errorMessage = error?.message?.toLowerCase() || "";
+  const errorCode = error?.code;
+  const actionRejected =
+    error?.action === "sendTransaction" && errorCode === "ACTION_REJECTED";
+
+  return (
+    actionRejected ||
+    errorCode === 4001 || // MetaMask user rejection
+    errorCode === "ACTION_REJECTED" ||
+    errorMessage.includes("user rejected") ||
+    errorMessage.includes("user denied") ||
+    errorMessage.includes("transaction was rejected") ||
+    errorMessage.includes("user cancelled") ||
+    errorMessage.includes("cancelled by user")
+  );
+};
+
 export const useVaultDeposit = (vaultData?: VaultData) => {
   const [loading, setLoading] = useState(false);
   const [transactionStage, setTransactionStage] = useState<
@@ -229,6 +248,11 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
 
                 return receipt;
               } catch (metamaskError: any) {
+                // Check if user cancelled the transaction
+                if (isUserCancellation(metamaskError)) {
+                  throw new Error("Transaction cancelled by user");
+                }
+
                 console.log(
                   `MetaMask ${token0Symbol} approval failed, trying HTS:`,
                   metamaskError.message
@@ -289,6 +313,11 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
 
                 return receipt;
               } catch (metamaskError: any) {
+                // Check if user cancelled the transaction
+                if (isUserCancellation(metamaskError)) {
+                  throw new Error("Transaction cancelled by user");
+                }
+
                 console.log(
                   `MetaMask ${token1Symbol} approval failed, trying HTS:`,
                   metamaskError.message
@@ -314,76 +343,92 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
         // Execute deposit transaction
         setTransactionStage("depositing");
         const depositPromise = (async () => {
-          const functionParameters = new ContractFunctionParameterBuilder()
-            .addParam({
-              type: "uint256",
-              name: "deposit0",
-              value:
-                deposit0 > 0
-                  ? Math.floor(
-                      deposit0 * Math.pow(10, token0Decimals)
-                    ).toString()
-                  : "0",
-            })
-            .addParam({
-              type: "uint256",
-              name: "deposit1",
-              value:
-                deposit1 > 0
-                  ? Math.floor(
-                      deposit1 * Math.pow(10, token1Decimals)
-                    ).toString()
-                  : "0",
-            })
-            .addParam({
-              type: "address",
-              name: "to",
-              value: AccountId.fromString(accountId).toEvmAddress(),
-            });
-          // If token1 is native wrapper (HBAR), use deposit1 amount
-          // If token0 is native wrapper (HBAR), use deposit0 amount
-          let hbarAmount: number | undefined;
-          if (token1Data.isNativeWrapper && deposit1 > 0) {
-            hbarAmount = Math.floor(deposit1 * 1e18);
-          } else if (token0Data.isNativeWrapper && deposit0 > 0) {
-            hbarAmount = Math.floor(deposit0 * 1e18);
-          }
+          try {
+            const functionParameters = new ContractFunctionParameterBuilder()
+              .addParam({
+                type: "uint256",
+                name: "deposit0",
+                value:
+                  deposit0 > 0
+                    ? Math.floor(
+                        deposit0 * Math.pow(10, token0Decimals)
+                      ).toString()
+                    : "0",
+              })
+              .addParam({
+                type: "uint256",
+                name: "deposit1",
+                value:
+                  deposit1 > 0
+                    ? Math.floor(
+                        deposit1 * Math.pow(10, token1Decimals)
+                      ).toString()
+                    : "0",
+              })
+              .addParam({
+                type: "address",
+                name: "to",
+                value: AccountId.fromString(accountId).toEvmAddress(),
+              });
+            // If token1 is native wrapper (HBAR), use deposit1 amount
+            // If token0 is native wrapper (HBAR), use deposit0 amount
+            let hbarAmount: number | undefined;
+            if (token1Data.isNativeWrapper && deposit1 > 0) {
+              hbarAmount = Math.floor(deposit1 * 1e18);
+            } else if (token0Data.isNativeWrapper && deposit0 > 0) {
+              hbarAmount = Math.floor(deposit0 * 1e18);
+            }
 
-          const txResult = await walletInterface.executeContractFunction(
-            vaultContractId,
-            "deposit",
-            functionParameters,
-            800000,
-            hbarAmount
-          );
-
-          if (!txResult) {
-            throw new Error(
-              "Transaction failed - no transaction hash returned"
+            const txResult = await walletInterface.executeContractFunction(
+              vaultContractId,
+              "deposit",
+              functionParameters,
+              800000,
+              hbarAmount
             );
-          }
 
-          return txResult;
+            if (!txResult) {
+              throw new Error(
+                "Transaction failed - no transaction hash returned"
+              );
+            }
+
+            return txResult;
+          } catch (executeError: any) {
+            // Check if user cancelled the transaction
+            if (isUserCancellation(executeError)) {
+              throw new Error("Transaction cancelled by user");
+            }
+            throw executeError;
+          }
         })();
 
         setTransactionStage("confirming");
         const txResult = await toast.transaction(
           (async () => {
-            const txHash = await depositPromise;
+            try {
+              const txHash = await depositPromise;
 
-            // Wait for transaction confirmation
-            const provider = new ethers.providers.Web3Provider(
-              (window as any).ethereum
-            );
-            const receipt = await provider.waitForTransaction(txHash);
-
-            if (receipt.status !== 1) {
-              throw new Error(
-                `Deposit transaction failed with status: ${receipt.status}`
+              // Wait for transaction confirmation
+              const provider = new ethers.providers.Web3Provider(
+                (window as any).ethereum
               );
-            }
+              const receipt = await provider.waitForTransaction(txHash);
 
-            return { txHash, receipt };
+              if (receipt.status !== 1) {
+                throw new Error(
+                  `Deposit transaction failed with status: ${receipt.status}`
+                );
+              }
+
+              return { txHash, receipt };
+            } catch (depositError: any) {
+              // Check if user cancelled the transaction
+              if (isUserCancellation(depositError)) {
+                throw new Error("Transaction cancelled by user");
+              }
+              throw depositError;
+            }
           })(),
           {
             loadingMessage: `Depositing ${
@@ -404,7 +449,15 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
       } catch (err: any) {
         setTransactionStage("error");
         console.error("Deposit error:", err);
-        // Don't show additional toast as it's already handled by toast.promise/toast.transaction
+
+        // Handle user cancellation gracefully - don't show error toast
+        if (isUserCancellation(err)) {
+          console.log("Transaction cancelled by user");
+          toast.info("Transaction cancelled by user");
+          throw new Error("Transaction cancelled by user");
+        }
+
+        // For other errors, let toast.promise/toast.transaction handle the display
         throw err;
       } finally {
         setLoading(false);

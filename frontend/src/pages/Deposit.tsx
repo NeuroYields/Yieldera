@@ -223,7 +223,21 @@ const DepositPage = ({ vault }: DepositPageProps) => {
       }
     } catch (error: any) {
       console.error("Deposit failed:", error);
-      // Error toast is already handled by the hook's toast.promise/toast.transaction
+
+      // Check if it's a user cancellation - if so, don't show error
+      const errorMessage = error?.message?.toLowerCase() || "";
+      const isUserCancel =
+        errorMessage.includes("transaction cancelled by user") ||
+        errorMessage.includes("user rejected") ||
+        errorMessage.includes("user denied") ||
+        error?.code === 4001 ||
+        error?.code === "ACTION_REJECTED";
+
+      if (!isUserCancel) {
+        // Only show error for non-cancellation errors
+        // Other errors are already handled by the hook's toast.promise/toast.transaction
+        console.log("Non-cancellation error occurred:", error);
+      }
     }
   };
 
