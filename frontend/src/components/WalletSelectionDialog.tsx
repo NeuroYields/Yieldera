@@ -66,15 +66,20 @@ export const WalletSelectionDialog = (props: WalletSelectionDialogProps) => {
           {/* Wallet Options */}
           <div className="space-y-3">
             <button
-              className="w-full cyber-button flex items-center justify-center space-x-3 py-4 group"
-              onClick={handleWalletConnectModal}
+              className="w-full cyber-button-disabled flex items-center justify-between px-4 py-4 cursor-not-allowed opacity-50"
+              disabled
             >
-              <img
-                src={WalletConnectLogo}
-                alt="WalletConnect logo"
-                className="w-6 h-6 group-hover:scale-110 transition-transform duration-200"
-              />
-              <span>WalletConnect</span>
+              <div className="flex items-center space-x-3">
+                <img
+                  src={WalletConnectLogo}
+                  alt="WalletConnect logo"
+                  className="w-6 h-6 opacity-60"
+                />
+                <span>WalletConnect</span>
+              </div>
+              <span className="text-xs bg-cyber-green text-cyber-black px-2 py-1 rounded font-retro">
+                SOON
+              </span>
             </button>
 
             <button

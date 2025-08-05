@@ -374,13 +374,32 @@ export default function App() {
                         <span className="text-xs text-white/60 font-mono">
                           TVL
                         </span>
-                        <span className="text-sm font-mono text-white font-semibold">
-                          {typeof vault.tvl === "string"
-                            ? vault.tvl
-                            : vault.tvl && typeof vault.tvl === "object"
-                            ? `TVL0: ${vault.tvl.tvl0}, TVL1: ${vault.tvl.tvl1}`
-                            : ""}
-                        </span>
+                        <div className="text-right">
+                          {typeof vault.tvl === "string" ? (
+                            <span className="text-sm font-mono text-white font-semibold">
+                              {vault.tvl}
+                            </span>
+                          ) : vault.tvl && typeof vault.tvl === "object" ? (
+                            <div className="space-y-1">
+                              <div className="text-xs font-mono text-white/80">
+                                {vault.pool.token0.symbol}:{" "}
+                                {parseFloat(vault.tvl.tvl0.toString()).toFixed(
+                                  2
+                                )}
+                              </div>
+                              <div className="text-xs font-mono text-white/80">
+                                {vault.pool.token1.symbol}:{" "}
+                                {parseFloat(vault.tvl.tvl1.toString()).toFixed(
+                                  2
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-mono text-white/60">
+                              --
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-white/60 font-mono">
