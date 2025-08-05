@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use alloy::{
+    network,
     primitives::{Address, utils::format_units},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
@@ -20,6 +21,11 @@ async fn get_hbar_balance_tool(
         String,
         description = "The address of the account to get the  native coin balance (HBAR) of"
     ),
+    network: tool_param!(
+        String,
+        description = "The network to use (testnet or mainnet)",
+        default = "testnet"
+    ),
 ) -> Result<ToolResponseContent> {
     let private_key_str = std::env::var("PRIVATE_KEY")?;
     let evm_signer = PrivateKeySigner::from_str(private_key_str.as_str())?;
@@ -29,7 +35,7 @@ async fn get_hbar_balance_tool(
     let testnet_chain_id = 296;
     let mainnet_chain_id = 295;
 
-    let is_mainnet = std::env::var("NETWORK").unwrap_or("testnet".to_string()) == "mainnet";
+    let is_mainnet = network.to_lowercase() == "mainnet";
 
     let rpc_url = if is_mainnet { mainnet_rpc } else { testnet_rpc };
 
