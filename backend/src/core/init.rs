@@ -3,6 +3,13 @@ use std::str::FromStr;
 use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner};
 
 use color_eyre::eyre::Result;
+use mcp_core::{client::ClientBuilder, transport::ClientSseTransportBuilder};
+use rig::{
+    agent::Agent,
+    client::ProviderClient,
+    completion::Prompt,
+    providers::{self, gemini::completion::CompletionModel, gemini::completion::GEMINI_2_0_FLASH},
+};
 use tracing::info;
 
 use crate::{
@@ -51,4 +58,45 @@ pub async fn init_all_vaults(app_state: &WebAppState) -> Result<()> {
     info!("Fetched {} vaults details.", all_vaults.len());
 
     Ok(())
+}
+
+pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
+    let mcp_client = ClientBuilder::new(
+        ClientSseTransportBuilder::new("http://127.0.0.1:3001/sse".to_string()).build(),
+    )
+    .build();
+
+    // Start the MCP client
+    mcp_client
+        .open()
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+
+    let init_res = mcp_client
+        .initialize()
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+
+    println!("Initialized mcp client Successfully: {:?}", init_res);
+
+    let tools_list_res = mcp_client
+        .list_tools(None, None)
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!(e))?;
+
+    let completion_model = providers::gemini::Client::from_env();
+
+    let mut agent_builder = completion_model.agent(GEMINI_2_0_FLASH);
+
+    // Add MCP tools to the agent
+    agent_builder = tools_list_res
+        .tools
+        .into_iter()
+        .fold(agent_builder, |builder, tool| {
+            builder.mcp_tool(tool, mcp_client.clone())
+        });
+
+    let agent = agent_builder.build();
+
+    Ok(agent)
 }
