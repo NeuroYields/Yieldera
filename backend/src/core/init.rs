@@ -1,15 +1,21 @@
-use std::str::FromStr;
+use std::{
+    process::{Command, Stdio},
+    str::FromStr,
+    time::Duration,
+};
 
 use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner};
 
 use color_eyre::eyre::Result;
 use mcp_core::{client::ClientBuilder, transport::ClientSseTransportBuilder};
+use reqwest::Client;
 use rig::{
     agent::Agent,
     client::ProviderClient,
     completion::Prompt,
     providers::{self, gemini::completion::CompletionModel, gemini::completion::GEMINI_2_0_FLASH},
 };
+use tokio::time::sleep;
 use tracing::info;
 
 use crate::{
@@ -61,6 +67,46 @@ pub async fn init_all_vaults(app_state: &WebAppState) -> Result<()> {
 }
 
 pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
+    // Run the mcp server first
+    let mut mcp_child = Command::new("cargo")
+        .arg("run")
+        .arg("--no-default-features")
+        .arg("--features")
+        .arg("server")
+        .current_dir("../mcp") // Adjust path as needed
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+
+    // Use a shutdown hook (like tokio's ctrl_c or Drop guard)
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        println!("Shutting down MCP server...");
+        let _ = mcp_child.kill();
+    });
+
+    // Wait for the server to become ready
+    let client = Client::new();
+    let mut retries = 0;
+    let max_retries = 10;
+
+    while retries < max_retries {
+        let res = client.get("http://127.0.0.1:3001/sse").send().await;
+
+        if let Ok(resp) = res {
+            if resp.status().is_success() {
+                break;
+            }
+        }
+
+        retries += 1;
+        sleep(Duration::from_millis(500)).await;
+    }
+
+    if retries == max_retries {
+        return Err(color_eyre::eyre::eyre!("MCP server did not start in time"));
+    }
+
     let mcp_client = ClientBuilder::new(
         ClientSseTransportBuilder::new("http://127.0.0.1:3001/sse".to_string()).build(),
     )
