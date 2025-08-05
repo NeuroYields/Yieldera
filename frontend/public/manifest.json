@@ -1,15 +1,48 @@
 {
-  "short_name": "",
-  "name": "",
+  "short_name": "Yieldera",
+  "name": "Yieldera - AI Liquidity Manager",
+  "description": "AI-powered DeFi liquidity manager on Hedera with intelligent position optimization",
   "icons": [
     {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
+    },
+    {
+      "src": "favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait-primary",
+  "theme_color": "#39ff14",
+  "background_color": "#000000",
+  "categories": ["finance", "productivity", "business"],
+  "lang": "en",
+  "scope": "/",
+  "prefer_related_applications": false
 }
