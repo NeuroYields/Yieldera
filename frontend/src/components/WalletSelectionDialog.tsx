@@ -2,6 +2,7 @@ import { connectToMetamask } from "../services/wallets/metamask/metamaskClient";
 import { openWalletConnectModal } from "../services/wallets/walletconnect/walletConnectClient";
 import MetamaskLogo from "../assets/metamask-logo.svg";
 import WalletConnectLogo from "../assets/walletconnect-logo.svg";
+import { toast } from "../hooks/useToastify";
 
 interface WalletSelectionDialogProps {
   open: boolean;
@@ -11,6 +12,30 @@ interface WalletSelectionDialogProps {
 
 export const WalletSelectionDialog = (props: WalletSelectionDialogProps) => {
   const { onClose, open, setOpen } = props;
+
+  if (!open) return null;
+
+  const handleMetaMaskConnect = async () => {
+    try {
+      setOpen(false);
+      await connectToMetamask();
+    } catch (error: any) {
+      console.error("MetaMask connection failed:", error);
+      // Error is already handled in connectToMetamask function
+    }
+  };
+
+  const handleWalletConnectModal = async () => {
+    try {
+      setOpen(false);
+      await openWalletConnectModal();
+    } catch (error: any) {
+      console.error("WalletConnect connection failed:", error);
+      const errorMessage =
+        error?.message || error?.reason || "Unknown error occurred";
+      toast.error(`Failed to connect to WalletConnect: ${errorMessage}`);
+    }
+  };
 
   if (!open) return null;
 
@@ -42,10 +67,7 @@ export const WalletSelectionDialog = (props: WalletSelectionDialogProps) => {
           <div className="space-y-3">
             <button
               className="w-full cyber-button flex items-center justify-center space-x-3 py-4 group"
-              onClick={() => {
-                openWalletConnectModal();
-                setOpen(false);
-              }}
+              onClick={handleWalletConnectModal}
             >
               <img
                 src={WalletConnectLogo}
@@ -57,10 +79,7 @@ export const WalletSelectionDialog = (props: WalletSelectionDialogProps) => {
 
             <button
               className="w-full cyber-button flex items-center justify-center space-x-3 py-4 group"
-              onClick={() => {
-                connectToMetamask();
-                setOpen(false);
-              }}
+              onClick={handleMetaMaskConnect}
             >
               <img
                 src={MetamaskLogo}

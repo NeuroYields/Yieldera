@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Wallet,
@@ -12,40 +12,35 @@ import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
 import { useVaultWithdraw } from "../hooks/useVaultWithdraw";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
-import { YIELDERA_CONTRACT_ADDRESS } from "../config/constants";
 import { ethers } from "ethers";
 import { toast } from "../hooks/useToastify";
-
-interface VaultDetails {
-  address: string;
-  name: string;
-  symbol: string;
-  token0: {
-    symbol: string;
-    name: string;
-    image?: string;
-  };
-  token1: {
-    symbol: string;
-    name: string;
-    image?: string;
-  };
-  currentTVL: number;
-  apy: number;
-  fee: number;
-}
+import { VaultData, TOKEN_ICONS } from "../types/api";
+import { useVaults } from "../hooks/useVaults";
 
 interface WithdrawPageProps {
-  vault?: VaultDetails;
+  vault?: VaultData;
   onBack?: () => void;
 }
 
-const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
+const WithdrawPage = ({ vault }: WithdrawPageProps) => {
   const navigate = useNavigate();
+  const { vaultAddress } = useParams();
   const [shareAmount, setShareAmount] = useState("");
   const [withdrawPercentage, setWithdrawPercentage] = useState<number | null>(
     null
   );
+
+  // Fetch vaults data to get the actual vault information
+  const { data: vaults, isLoading: vaultsLoading } = useVaults();
+
+  // Find the current vault from the data using the address from URL params
+  const currentVault =
+    vault ||
+    (vaults && vaultAddress
+      ? vaults.find(
+          (v) => v.address.toLowerCase() === vaultAddress.toLowerCase()
+        )
+      : null);
 
   const {
     withdrawFromVault,
@@ -56,35 +51,57 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
     loadingPosition,
     transactionStage,
     isConnected,
-  } = useVaultWithdraw();
+  } = useVaultWithdraw(currentVault || undefined);
 
   const { accountId } = useWalletInterface();
 
-  const currentVault = vault || {
-    address: YIELDERA_CONTRACT_ADDRESS,
-    name: "Yieldera Vault WHBAR",
-    symbol: "LP",
-    token0: {
-      symbol: "WHBAR",
-      name: "Wrapped HBAR",
-      image: "/images/tokens/whbar.png",
-    },
-    token1: {
-      symbol: "SAUCE",
-      name: "Sauce Token",
-      image: "/images/tokens/sauce.webp",
-    },
-    currentTVL: 2100000,
-    apy: 15.7,
-    fee: 0.3,
+  // If no vault data is available, show loading or error state
+  if (!currentVault) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
+        <Card className="p-8">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Vault Not Found
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Unable to load vault data. Please try refreshing the page.
+            </p>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Refresh Page
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const displayVault = currentVault;
+
+  // Helper function to format currency from TVL string
+  const formatCurrencyValue = (tvlString: string): string => {
+    // Extract numeric value from strings like "$2.1M"
+    const match = tvlString.match(/\$?([\d.]+)([KMB]?)/);
+    if (match) {
+      const [, value, unit] = match;
+      const numValue = parseFloat(value);
+      switch (unit) {
+        case "K":
+          return `$${(numValue * 1000).toLocaleString()}`;
+        case "M":
+          return `$${(numValue * 1000000).toLocaleString()}`;
+        case "B":
+          return `$${(numValue * 1000000000).toLocaleString()}`;
+        default:
+          return `$${numValue.toLocaleString()}`;
+      }
+    }
+    return tvlString;
   };
 
   const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      navigate("/app");
-    }
+    navigate("/app");
   };
 
   const handlePercentageClick = (percentage: number) => {
@@ -155,8 +172,21 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
   const getEstimatedReceive = () => {
     if (!shareAmount || !userPosition) return { token0: "0", token1: "0" };
 
-    const withdrawRatio =
-      parseFloat(shareAmount) / parseFloat(userPosition.shareBalanceFormatted);
+    const shareAmountFloat = parseFloat(shareAmount);
+    const shareBalanceFloat = parseFloat(userPosition.shareBalanceFormatted);
+
+    // Prevent division by zero or very small numbers
+    if (shareAmountFloat <= 0 || shareBalanceFloat <= 0) {
+      return { token0: "0", token1: "0" };
+    }
+
+    const withdrawRatio = shareAmountFloat / shareBalanceFloat;
+
+    // Prevent infinity calculations
+    if (!isFinite(withdrawRatio) || withdrawRatio <= 0) {
+      return { token0: "0", token1: "0" };
+    }
+
     const token0Amount = (
       parseFloat(userPosition.token0Amount) * withdrawRatio
     ).toFixed(6);
@@ -186,7 +216,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                 Back
               </Button>
               <h1 className="text-lg font-mono text-white">
-                Withdraw from {currentVault.name}
+                Withdraw from {displayVault.name}
               </h1>
             </div>
           </div>
@@ -207,21 +237,22 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
               {/* Vault Header */}
               <div className="flex items-center space-x-3 p-3 bg-card/30 rounded-lg border border-border/50 mb-4">
                 <img
-                  src={currentVault.token0.image}
-                  alt={currentVault.token0.symbol}
+                  src={displayVault.pool.token0.image}
+                  alt={displayVault.pool.token0.symbol}
                   className="w-8 h-8 rounded-full"
                 />
                 <img
-                  src={currentVault.token1.image}
-                  alt={currentVault.token1.symbol}
+                  src={displayVault.pool.token1.image}
+                  alt={displayVault.pool.token1.symbol}
                   className="w-8 h-8 rounded-full -ml-2"
                 />
                 <div>
                   <div className="font-mono text-sm text-white">
-                    {currentVault.token0.symbol}/{currentVault.token1.symbol}
+                    {displayVault.pool.token0.symbol}/
+                    {displayVault.pool.token1.symbol}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {currentVault.name}
+                    {displayVault.name}
                   </div>
                 </div>
               </div>
@@ -233,7 +264,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                     APY
                   </div>
                   <div className="font-mono text-sm text-green-400">
-                    {currentVault.apy}%
+                    {displayVault.apy}
                   </div>
                 </div>
                 <div className="p-3 bg-card/30 rounded-lg border border-border/50">
@@ -241,7 +272,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                     FEE
                   </div>
                   <div className="font-mono text-sm text-secondary">
-                    {currentVault.fee}%
+                    {displayVault.pool.fee}%
                   </div>
                 </div>
               </div>
@@ -274,7 +305,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                              {currentVault.token0.symbol}:
+                              {displayVault.pool.token0.symbol}:
                             </span>
                             <span className="text-white font-mono">
                               {userPosition.token0Amount}
@@ -282,7 +313,7 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                              {currentVault.token1.symbol}:
+                              {displayVault.pool.token1.symbol}:
                             </span>
                             <span className="text-white font-mono">
                               {userPosition.token1Amount}
@@ -409,12 +440,12 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                         <div className="flex justify-between items-center">
                           <div className="flex items-center space-x-2">
                             <img
-                              src={currentVault.token0.image}
-                              alt={currentVault.token0.symbol}
+                              src={displayVault.pool.token0.image}
+                              alt={displayVault.pool.token0.symbol}
                               className="w-4 h-4 rounded-full"
                             />
                             <span className="text-xs text-muted-foreground font-mono">
-                              {currentVault.token0.symbol}:
+                              {displayVault.pool.token0.symbol}:
                             </span>
                           </div>
                           <span className="text-sm font-mono text-white">
@@ -424,12 +455,12 @@ const WithdrawPage = ({ vault, onBack }: WithdrawPageProps) => {
                         <div className="flex justify-between items-center">
                           <div className="flex items-center space-x-2">
                             <img
-                              src={currentVault.token1.image}
-                              alt={currentVault.token1.symbol}
+                              src={displayVault.pool.token1.image}
+                              alt={displayVault.pool.token1.symbol}
                               className="w-4 h-4 rounded-full"
                             />
                             <span className="text-xs text-muted-foreground font-mono">
-                              {currentVault.token1.symbol}:
+                              {displayVault.pool.token1.symbol}:
                             </span>
                           </div>
                           <span className="text-sm font-mono text-white">

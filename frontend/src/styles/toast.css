@@ -71,12 +71,13 @@
 }
 
 .Toastify__progress-bar {
-  background: linear-gradient(
+  /* background: linear-gradient(
     90deg,
     hsl(120 100% 50%),
     hsl(195 100% 50%),
     hsl(285 100% 65%)
-  ) !important;
+  ) !important; */
+  background: hsl(120 100% 50%) !important;
 }
 
 /* Loading spinner for async toasts */
