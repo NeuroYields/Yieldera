@@ -2,13 +2,14 @@ use std::str::FromStr;
 
 use actix_web::{HttpResponse, Responder, get, post, web};
 use alloy::primitives::Address;
+use rig::completion::Prompt;
 use tracing::info;
 
 use crate::{
     config::CONFIG,
     core::vault::YielderaVault,
     state::AppState,
-    types::{AdminAssociateVaultTokensRequest, ApiErrorResponse, VaultDetails},
+    types::{AdminAssociateVaultTokensRequest, ApiErrorResponse, ChatRequest, VaultDetails},
 };
 
 #[utoipa::path(
@@ -140,4 +141,32 @@ async fn handle_admin_associate_vault_tokens(
     }
 
     HttpResponse::Ok().body("true")
+}
+
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Chat", body = String),
+    )
+)]
+#[post("/api/v1/chat")]
+async fn handle_chat(
+    app_state: web::Data<AppState>,
+    body: web::Json<ChatRequest>,
+) -> impl Responder {
+    let ai_agent = &app_state.ai_agent;
+
+    let network = body.network.clone().unwrap_or("mainnet".to_string());
+
+    let prompt_msg = format!(
+        "Network is {}, Account address is {}. Prompt : {}.",
+        network, body.account_address, body.message
+    );
+
+    match ai_agent.prompt(prompt_msg).await {
+        Ok(reply) => HttpResponse::Ok().json(reply),
+        Err(e) => HttpResponse::InternalServerError().json(ApiErrorResponse {
+            message: "Failed to process chat request".to_string(),
+            error: e.to_string(),
+        }),
+    }
 }

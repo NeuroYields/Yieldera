@@ -87,6 +87,7 @@ async fn main() -> std::io::Result<()> {
             .service(api::get_health_service)
             .service(api::handle_get_all_vaults)
             .service(api::handle_admin_associate_vault_tokens)
+            .service(api::handle_chat)
             .split_for_parts();
 
         app.service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", app_api))
