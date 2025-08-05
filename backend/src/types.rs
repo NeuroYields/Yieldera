@@ -187,3 +187,10 @@ pub struct VaultTVL {
     pub tvl0: f64,
     pub tvl1: f64,
 }
+
+#[derive(serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct ChatRequest {
+    pub message: String,
+    pub network: Option<String>,
+    pub account_address: String,
+}
