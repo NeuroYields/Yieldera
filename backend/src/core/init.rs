@@ -67,6 +67,23 @@ pub async fn init_all_vaults(app_state: &WebAppState) -> Result<()> {
 }
 
 pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
+    // Build the mcp server first
+    let mut build_mcp_child = Command::new("cargo")
+        .arg("build")
+        .arg("--no-default-features")
+        .arg("--features")
+        .arg("server")
+        .current_dir("../mcp") // Adjust path as needed
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()?;
+
+    let exit_status = build_mcp_child.wait()?;
+
+    if !exit_status.success() {
+        return Err(color_eyre::eyre::eyre!("Failed to build mcp"));
+    }
+
     // Run the mcp server first
     let mut mcp_child = Command::new("cargo")
         .arg("run")
@@ -142,7 +159,10 @@ pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
             builder.mcp_tool(tool, mcp_client.clone())
         });
 
-    let agent = agent_builder.build();
+    let agent = agent_builder
+        .preamble("You Are Yieldera AI Agent, you are a helpful assistant for Yieldera platform and hedera ecosystem. You can help users with their questions and also you have access to to some tools to help them. You are not a search engine and you can't answer questions that are not related to hedera or yieldera.")
+        .temperature(0.0)
+        .build();
 
     Ok(agent)
 }
