@@ -2,12 +2,10 @@ import { useState, useCallback, useEffect } from "react";
 import { AccountId, ContractId } from "@hashgraph/sdk";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { ContractFunctionParameterBuilder } from "../services/wallets/contractFunctionParameterBuilder";
-import {
-  YIELDERA_CONTRACT_ADDRESS,
-  YIELDERA_CONTRACT_ID,
-} from "../config/constants";
 import { ethers } from "ethers";
 import { toast } from "./useToastify";
+import { VaultData } from "../types/api";
+import { env } from "../config/env";
 
 export interface UserVaultPosition {
   shareBalance: string;
@@ -21,7 +19,7 @@ export interface VaultInfo {
   symbol: string;
 }
 
-export const useVaultWithdraw = () => {
+export const useVaultWithdraw = (vaultData?: VaultData) => {
   const [loading, setLoading] = useState(false);
   const [userPosition, setUserPosition] = useState<UserVaultPosition | null>(
     null
@@ -39,7 +37,7 @@ export const useVaultWithdraw = () => {
 
   // Get user's vault position (shares and estimated token amounts)
   const fetchUserPosition = useCallback(async () => {
-    if (!walletInterface || !accountId) {
+    if (!walletInterface || !accountId || !vaultData) {
       setUserPosition(null);
       return;
     }
@@ -47,7 +45,18 @@ export const useVaultWithdraw = () => {
     setLoadingPosition(true);
 
     try {
-      const vaultContractId = YIELDERA_CONTRACT_ID;
+      const vaultContractId = ContractId.fromEvmAddress(
+        0,
+        0,
+        vaultData.address
+      );
+      const vaultContractAddress = vaultData.address;
+
+      // Debug logging to ensure we're using the correct vault address
+      console.log("=== VAULT WITHDRAW DEBUG ===");
+      console.log("Using vault address from backend:", vaultContractAddress);
+      console.log("Vault contract ID:", vaultContractId.toString());
+      console.log("Vault name:", vaultData.name);
 
       // Call balanceOf to get user's shares using MetaMask for better compatibility
       try {
@@ -63,7 +72,7 @@ export const useVaultWithdraw = () => {
         console.log("AccountId from context:", accountId);
 
         const vaultContract = new ethers.Contract(
-          YIELDERA_CONTRACT_ADDRESS,
+          vaultContractAddress,
           [
             "function balanceOf(address account) view returns (uint256)",
             "function totalSupply() view returns (uint256)",
@@ -141,17 +150,36 @@ export const useVaultWithdraw = () => {
         console.log("User token0 amount (wei):", userToken0Amount.toString());
         console.log("User token1 amount (raw):", userToken1Amount.toString());
 
-        const token0Formatted = ethers.utils.formatUnits(userToken0Amount, 8);
-        const token1Formatted = ethers.utils.formatUnits(userToken1Amount, 6);
+        // Use the correct decimals from vault data
+        const token0Decimals = vaultData.pool.token0.decimals;
+        const token1Decimals = vaultData.pool.token1.decimals;
 
-        console.log("Token0 formatted (WHBAR):", token0Formatted);
-        console.log("Token1 formatted (SAUCE):", token1Formatted);
+        console.log("Token0 decimals:", token0Decimals);
+        console.log("Token1 decimals:", token1Decimals);
+
+        const token0Formatted = ethers.utils.formatUnits(
+          userToken0Amount,
+          token0Decimals
+        );
+        const token1Formatted = ethers.utils.formatUnits(
+          userToken1Amount,
+          token1Decimals
+        );
+
+        console.log(
+          `Token0 formatted (${vaultData.pool.token0.symbol}):`,
+          token0Formatted
+        );
+        console.log(
+          `Token1 formatted (${vaultData.pool.token1.symbol}):`,
+          token1Formatted
+        );
 
         setUserPosition({
           shareBalance: shareBalanceStr,
-          shareBalanceFormatted: parseFloat(shareBalanceFormatted).toFixed(9),
-          token0Amount: parseFloat(token0Formatted).toFixed(9),
-          token1Amount: parseFloat(token1Formatted).toFixed(2),
+          shareBalanceFormatted: shareBalanceFormatted, // Keep full precision
+          token0Amount: parseFloat(token0Formatted).toFixed(6), // Use 6 decimals for most tokens
+          token1Amount: parseFloat(token1Formatted).toFixed(6), // Use 6 decimals for most tokens
         });
       } catch (metamaskError) {
         console.error(
@@ -173,7 +201,7 @@ export const useVaultWithdraw = () => {
 
         const shareBalanceResult =
           await walletInterface.executeContractFunction(
-            ContractId.fromString(vaultContractId),
+            vaultContractId,
             "balanceOf",
             balanceOfParams,
             100000
@@ -206,13 +234,17 @@ export const useVaultWithdraw = () => {
     } finally {
       setLoadingPosition(false);
     }
-  }, [walletInterface, accountId]);
+  }, [walletInterface, accountId, vaultData]);
 
   // Withdraw shares from vault
   const withdrawFromVault = useCallback(
     async (shareAmount: string) => {
       if (!walletInterface || !accountId) {
         throw new Error("Wallet not connected");
+      }
+
+      if (!vaultData) {
+        throw new Error("Vault data not available");
       }
 
       if (!userPosition) {
@@ -246,7 +278,11 @@ export const useVaultWithdraw = () => {
           );
         }
 
-        const vaultContractId = YIELDERA_CONTRACT_ID;
+        const vaultContractId = ContractId.fromEvmAddress(
+          0,
+          0,
+          vaultData!.address
+        );
 
         // Execute withdrawal with enhanced toast notifications
         const withdrawResult = await toast.transaction(
@@ -267,7 +303,7 @@ export const useVaultWithdraw = () => {
             console.log("Executing withdraw transaction...");
 
             const txResult = await walletInterface.executeContractFunction(
-              ContractId.fromString(vaultContractId),
+              vaultContractId,
               "withdraw",
               functionParameters,
               600000
@@ -320,7 +356,7 @@ export const useVaultWithdraw = () => {
         setLoading(false);
       }
     },
-    [walletInterface, accountId, userPosition, fetchUserPosition]
+    [walletInterface, accountId, userPosition, fetchUserPosition, vaultData]
   );
 
   useEffect(() => {
@@ -329,7 +365,7 @@ export const useVaultWithdraw = () => {
     } else {
       setUserPosition(null);
     }
-  }, [fetchUserPosition, walletInterface, accountId]);
+  }, [fetchUserPosition, walletInterface, accountId, vaultData]);
 
   return {
     withdrawFromVault,

@@ -6,13 +6,25 @@ import AppRouter from "./AppRouter";
 import "./App.css";
 import { ToastProvider } from "./components/ui/ToastProvider";
 import "./styles/toast.css";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { QueryProvider } from "./providers/QueryProvider";
+import { validateEnvironment } from "./config/env";
+
+// Validate environment variables on app initialization
+try {
+  validateEnvironment();
+} catch (error) {
+  console.error("Environment validation failed:", error);
+}
 
 function App() {
   return (
-    <>
-      <AppRouter />
-      <ToastProvider />
-    </>
+    <ErrorBoundary>
+      <QueryProvider>
+        <AppRouter />
+        <ToastProvider />
+      </QueryProvider>
+    </ErrorBoundary>
   );
 }
 

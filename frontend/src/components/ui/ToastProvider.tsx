@@ -12,6 +12,7 @@ export const ToastProvider = () => {
       rtl={false}
       pauseOnFocusLoss
       pauseOnHover
+      theme="colored"
       className="custom-toast-container"
     />
   );

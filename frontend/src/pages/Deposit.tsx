@@ -13,8 +13,9 @@ import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
 import { useVaultDeposit } from "../hooks/useVaultDeposit";
 import { useWalletInterface } from "../services/wallets/useWalletInterface";
-import { YIELDERA_CONTRACT_ADDRESS } from "../config/constants";
 import { toast } from "../hooks/useToastify";
+import { VaultData } from "../types/api";
+import { useVaults } from "../hooks/useVaults";
 
 // Mock TVL data for chart
 const tvlData = [
@@ -28,59 +29,170 @@ const tvlData = [
   { date: "Feb 18", tvl: 2100000, timestamp: "2025-02-18" },
 ];
 
-interface VaultDetails {
-  address: string;
-  name: string;
-  symbol: string;
-  token0: {
-    symbol: string;
-    name: string;
-    image?: string;
-  };
-  token1: {
-    symbol: string;
-    name: string;
-    image?: string;
-  };
-  currentTVL: number;
-  apy: number;
-  fee: number;
-}
-
 interface DepositPageProps {
-  vault?: VaultDetails;
+  vault?: VaultData;
   onBack?: () => void;
 }
 
 const DepositPage = ({ vault }: DepositPageProps) => {
   const navigate = useNavigate();
+  const { vaultAddress } = useParams();
   const [deposit0Amount, setDeposit0Amount] = useState("");
   const [deposit1Amount, setDeposit1Amount] = useState("");
   const [selectedToken, setSelectedToken] = useState<
     "token0" | "token1" | "both"
   >("both");
 
+  // Fetch vaults data to get the actual vault information
+  const { data: vaults, isLoading: vaultsLoading } = useVaults();
+
+  // Find the current vault from the data - handle case-insensitive address matching
+  const currentVault =
+    vault ||
+    (vaults && vaultAddress
+      ? vaults.find(
+          (v) => v.address?.toLowerCase() === vaultAddress?.toLowerCase()
+        )
+      : null) ||
+    (vaults && vaults.length === 1 ? vaults[0] : null); // Use first vault if only one available
+
+  // Always call hooks at the top level - use fallback data if needed
   const { depositToVault, loading, transactionStage, isConnected } =
-    useVaultDeposit();
+    useVaultDeposit(currentVault || undefined);
   const { accountId } = useWalletInterface();
 
-  const currentVault = vault || {
-    address: YIELDERA_CONTRACT_ADDRESS,
-    name: "Yieldera Vault Hbar",
-    symbol: "YHbar",
-    token0: {
-      symbol: "HBAR",
-      name: "Hedera Hashgraph",
-      image: "/images/tokens/hbar.png",
-    },
-    token1: {
-      symbol: "SAUCE",
-      name: "Sauce Token",
-      image: "/images/tokens/sauce.webp",
-    },
-    currentTVL: 2100000,
-    apy: 15.7,
-    fee: 0.3,
+  // Debug logging
+  console.log("=== VAULT DATA DEBUG ===");
+  console.log("vaultAddress from params:", vaultAddress);
+  console.log("vaults from API:", vaults);
+  if (vaults && vaults.length > 0) {
+    console.log("First vault structure:", vaults[0]);
+    console.log(
+      "Vault addresses available:",
+      vaults.map((v) => ({ id: v.id, address: v.address }))
+    );
+    console.log("Looking for vaultAddress:", vaultAddress);
+    console.log("Matching attempts:");
+    vaults.forEach((v, i) => {
+      console.log(`  Vault ${i}: id="${v.id}" address="${v.address}"`);
+      console.log(`    address match: ${v.address === vaultAddress}`);
+      console.log(
+        `    address lowercase match: ${
+          v.address?.toLowerCase() === vaultAddress?.toLowerCase()
+        }`
+      );
+    });
+  }
+  console.log("currentVault found:", currentVault);
+  console.log("vaultsLoading:", vaultsLoading);
+
+  // If we're loading or no vault data is available, show loading state
+  if (vaultsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground font-mono">
+            Loading vault data...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // If no vault data is available from backend, show error
+  if (!currentVault && !vaultsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 font-mono mb-4">
+            No vault data available from backend
+          </p>
+          <p className="text-muted-foreground font-mono text-sm">
+            VaultAddress: {vaultAddress || "none"}
+            <br />
+            Available vaults: {vaults?.length || 0}
+          </p>
+          <Button onClick={() => navigate("/app")} className="mt-4">
+            Back to Vaults
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Use the backend vault data - no fallback to hardcoded SAUCE data
+  const displayVault = currentVault!;
+
+  // Debug logging for vault data
+  console.log("=== DISPLAY VAULT DEBUG ===");
+  console.log("displayVault:", displayVault);
+  console.log("displayVault.tvl:", displayVault.tvl);
+  console.log("displayVault.totalSupply:", displayVault.totalSupply);
+  console.log("typeof displayVault.tvl:", typeof displayVault.tvl);
+  if (typeof displayVault.tvl === "object") {
+    console.log("displayVault.tvl.tvl0:", displayVault.tvl.tvl0);
+    console.log("displayVault.tvl.tvl1:", displayVault.tvl.tvl1);
+  }
+  console.log("Using fallback?", !currentVault);
+  if (displayVault.pool) {
+    console.log(
+      "Token0:",
+      displayVault.pool.token0.symbol,
+      displayVault.pool.token0.address
+    );
+    console.log(
+      "Token1:",
+      displayVault.pool.token1.symbol,
+      displayVault.pool.token1.address
+    );
+    console.log("=== NEED TO ADD THESE TO TOKEN MAPPING ===");
+    console.log(
+      `"${displayVault.pool.token0.address.toLowerCase()}": "NEED_TOKEN_ID_FOR_${
+        displayVault.pool.token0.symbol
+      }",`
+    );
+    console.log(
+      `"${displayVault.pool.token1.address.toLowerCase()}": "NEED_TOKEN_ID_FOR_${
+        displayVault.pool.token1.symbol
+      }",`
+    );
+  }
+
+  // Helper function to format currency from TVL data
+  const formatCurrencyValue = (
+    tvl: string | { tvl0: number; tvl1: number }
+  ): string => {
+    if (
+      typeof tvl === "object" &&
+      tvl.tvl0 !== undefined &&
+      tvl.tvl1 !== undefined
+    ) {
+      // Just show a placeholder since we can't calculate USD value from relative prices
+      return "See token breakdown below";
+    }
+
+    // Handle string format like "$2.1M"
+    if (typeof tvl === "string") {
+      const match = tvl.match(/\$?([\d.]+)([KMB]?)/);
+      if (match) {
+        const [, value, unit] = match;
+        const numValue = parseFloat(value);
+        switch (unit) {
+          case "K":
+            return `$${(numValue * 1000).toLocaleString()}`;
+          case "M":
+            return `$${(numValue * 1000000).toLocaleString()}`;
+          case "B":
+            return `$${(numValue * 1000000000).toLocaleString()}`;
+          default:
+            return `$${numValue.toLocaleString()}`;
+        }
+      }
+      return tvl;
+    }
+
+    return "$0.00";
   };
 
   const handleBack = () => {
@@ -143,8 +255,8 @@ const DepositPage = ({ vault }: DepositPageProps) => {
               Deposit to Vault
             </h1>
             <p className="text-muted-foreground font-mono text-sm mt-1">
-              {currentVault.name} • {currentVault.token0.symbol}/
-              {currentVault.token1.symbol}
+              {displayVault.name} • {displayVault.pool.token0.symbol}/
+              {displayVault.pool.token1.symbol}
             </p>
           </div>
         </div>
@@ -158,7 +270,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   <h2 className="font-mono text-xl text-white">Deposit</h2>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <TrendingUp className="w-4 h-4 text-green-400" />
-                    {currentVault.apy}% APY
+                    {displayVault.apy} APY
                   </div>
                 </div>
 
@@ -187,10 +299,13 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                 <div className="grid grid-cols-2 gap-4 p-4 bg-card/30 rounded-lg border border-border/50">
                   <div>
                     <div className="text-xs text-muted-foreground font-mono mb-1">
-                      CURRENT TVL
+                      VAULT TOKEN SUPPLY
                     </div>
                     <div className="font-mono text-lg text-white">
-                      {formatCurrency(currentVault.currentTVL)}
+                      {displayVault.totalSupply
+                        ? displayVault.totalSupply.toExponential(3)
+                        : "0"}{" "}
+                      {displayVault.symbol}
                     </div>
                   </div>
                   <div>
@@ -198,7 +313,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                       FEE TIER
                     </div>
                     <div className="font-mono text-lg text-secondary">
-                      {currentVault.fee}%
+                      {displayVault.pool.fee}%
                     </div>
                   </div>
                 </div>
@@ -218,7 +333,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                             : "text-muted-foreground hover:text-white hover:bg-card/30 border-transparent hover:border-border/30"
                         }`}
                       >
-                        {currentVault.token0.symbol}
+                        {displayVault.pool.token0.symbol}
                       </button>
                       <button
                         onClick={() => setSelectedToken("token1")}
@@ -228,7 +343,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                             : "text-muted-foreground hover:text-white hover:bg-card/30 border-transparent hover:border-border/30"
                         }`}
                       >
-                        {currentVault.token1.symbol}
+                        {displayVault.pool.token1.symbol}
                       </button>
                       <button
                         onClick={() => setSelectedToken("both")}
@@ -249,7 +364,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   {(selectedToken === "token0" || selectedToken === "both") && (
                     <div>
                       <label className="block text-sm font-mono text-white mb-2">
-                        {currentVault.token0.symbol} Amount
+                        {displayVault.pool.token0.symbol} Amount
                       </label>
                       <Input
                         type="number"
@@ -265,7 +380,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   {(selectedToken === "token1" || selectedToken === "both") && (
                     <div>
                       <label className="block text-sm font-mono text-white mb-2">
-                        {currentVault.token1.symbol} Amount
+                        {displayVault.pool.token1.symbol} Amount
                       </label>
                       <Input
                         type="number"
@@ -344,89 +459,225 @@ const DepositPage = ({ vault }: DepositPageProps) => {
             </Card>
           </div>
 
-          {/* TVL Chart */}
+          {/* TVL Analytics */}
           <div className="space-y-6">
             <Card className="bg-card/50 backdrop-blur-sm border border-border/50">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="font-mono text-xl text-white">
-                    TVL Analytics
+                    Vault Analytics
                   </h2>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <DollarSign className="w-4 h-4 text-green-400" />
-                    30D Growth
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        displayVault.isActive ? "bg-green-400" : "bg-red-400"
+                      }`}
+                    />
+                    {displayVault.isActive ? "Active" : "Inactive"}
                   </div>
                 </div>
 
-                {/* Current TVL Display */}
-                <div className="text-center py-4">
-                  <div className="text-3xl font-mono text-white mb-2">
-                    {formatCurrency(currentVault.currentTVL)}
-                  </div>
-                  <div className="text-sm text-muted-foreground font-mono">
+                {/* Total Value Locked */}
+                <div className="p-4 bg-card/30 rounded-lg border border-border/50">
+                  <div className="text-xs text-muted-foreground font-mono mb-3 uppercase tracking-wide">
                     Total Value Locked
                   </div>
-                  <div className="flex items-center justify-center gap-2 mt-2">
-                    <TrendingUp className="w-4 h-4 text-green-400" />
-                    <span className="text-green-400 font-mono text-sm">
-                      +147% (30d)
-                    </span>
-                  </div>
-                </div>
 
-                {/* Chart */}
-                <div className="h-64">
-                  {/* Mock Chart Visualization */}
-                  <div className="h-full bg-card/20 rounded-lg border border-border/30 relative overflow-hidden">
-                    <div className="absolute inset-0 flex items-end justify-around p-4">
-                      {tvlData.map((point, index) => (
-                        <div
-                          key={index}
-                          className="flex flex-col items-center gap-2"
-                        >
-                          <div
-                            className="w-8 bg-gradient-to-t from-primary/80 to-primary/20 rounded-t-sm"
-                            style={{
-                              height: `${
-                                (point.tvl /
-                                  Math.max(...tvlData.map((d) => d.tvl))) *
-                                180
-                              }px`,
-                            }}
-                          />
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {point.date.split(" ")[1]}
-                          </span>
+                  {/* Token Breakdown */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-card/20 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={displayVault.pool.token0.image}
+                          alt={displayVault.pool.token0.symbol}
+                          className="w-6 h-6 rounded-full"
+                        />
+                        <div>
+                          <div className="font-mono text-sm text-white">
+                            {displayVault.pool.token0.symbol}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {displayVault.pool.token0.name}
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-sm text-white">
+                          {typeof displayVault.tvl === "object" &&
+                          displayVault.tvl.tvl0
+                            ? displayVault.tvl.tvl0.toFixed(6)
+                            : "--"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {typeof displayVault.tvl === "object" &&
+                          displayVault.tvl.tvl0
+                            ? `${displayVault.tvl.tvl0.toFixed(6)} ${
+                                displayVault.pool.token0.symbol
+                              }`
+                            : "Amount not available"}
+                        </div>
+                      </div>
                     </div>
-                    <div className="absolute top-4 left-4 text-xs text-muted-foreground font-mono">
-                      TVL Growth Chart
+
+                    <div className="flex items-center justify-between p-3 bg-card/20 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={displayVault.pool.token1.image}
+                          alt={displayVault.pool.token1.symbol}
+                          className="w-6 h-6 rounded-full"
+                        />
+                        <div>
+                          <div className="font-mono text-sm text-white">
+                            {displayVault.pool.token1.symbol}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {displayVault.pool.token1.name}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-sm text-white">
+                          {typeof displayVault.tvl === "object" &&
+                          displayVault.tvl.tvl1
+                            ? displayVault.tvl.tvl1.toFixed(8)
+                            : "--"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {typeof displayVault.tvl === "object" &&
+                          displayVault.tvl.tvl1
+                            ? `${displayVault.tvl.tvl1.toFixed(8)} ${
+                                displayVault.pool.token1.symbol
+                              }`
+                            : "Amount not available"}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Additional Metrics */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-card/30 rounded-lg border border-border/50 text-center">
-                    <div className="text-lg font-mono text-white">24h</div>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      Volume
+                {/* Position Information */}
+                <div className="p-4 bg-card/30 rounded-lg border border-border/50">
+                  <div className="text-xs text-muted-foreground font-mono mb-3 uppercase tracking-wide">
+                    Liquidity Position
+                  </div>
+
+                  {/* Price Range Visualization */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Lower Tick
+                      </span>
+                      <span className="text-xs font-mono text-white">
+                        {displayVault.lowerTick}
+                      </span>
                     </div>
-                    <div className="text-sm font-mono text-white mt-1">
-                      $125.6K
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Upper Tick
+                      </span>
+                      <span className="text-xs font-mono text-white">
+                        {displayVault.upperTick}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Current Tick
+                      </span>
+                      <span className="text-xs font-mono text-green-400">
+                        {displayVault.pool.currentTick}
+                      </span>
+                    </div>
+
+                    {/* Visual Range Indicator */}
+                    <div className="relative h-2 bg-card/20 rounded-full mb-2">
+                      <div
+                        className="absolute h-full bg-primary/30 rounded-full"
+                        style={{
+                          left: "20%",
+                          width: "60%",
+                        }}
+                      />
+                      <div
+                        className="absolute w-1 h-4 bg-green-400 rounded-full -top-1"
+                        style={{
+                          left:
+                            displayVault.pool.currentTick >=
+                              displayVault.lowerTick &&
+                            displayVault.pool.currentTick <=
+                              displayVault.upperTick
+                              ? `${
+                                  20 +
+                                  ((displayVault.pool.currentTick -
+                                    displayVault.lowerTick) /
+                                    (displayVault.upperTick -
+                                      displayVault.lowerTick)) *
+                                    60
+                                }%`
+                              : displayVault.pool.currentTick <
+                                displayVault.lowerTick
+                              ? "15%"
+                              : "85%",
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground font-mono">
+                      <span>Min Price</span>
+                      <span>Current</span>
+                      <span>Max Price</span>
                     </div>
                   </div>
-                  <div className="p-3 bg-card/30 rounded-lg border border-border/50 text-center">
-                    <div className="text-lg font-mono text-white">156</div>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      Depositors
+
+                  {/* Liquidity Amount */}
+                </div>
+
+                {/* Vault Metrics */}
+
+                {/* Price Information */}
+                <div className="p-4 bg-card/30 rounded-lg border border-border/50">
+                  <div className="text-xs text-muted-foreground font-mono mb-3 uppercase tracking-wide">
+                    Relative Prices
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <img
+                          src={displayVault.pool.token0.image}
+                          alt={displayVault.pool.token0.symbol}
+                          className="w-4 h-4 rounded-full"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {displayVault.pool.token0.symbol}
+                        </span>
+                      </div>
+                      <div className="font-mono text-sm text-white">
+                        {displayVault.pool.price0?.toFixed(4) || "0.0000"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        vs {displayVault.pool.token1.symbol}
+                      </div>
                     </div>
-                    <div className="text-sm font-mono text-white mt-1">
-                      +12 today
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <img
+                          src={displayVault.pool.token1.image}
+                          alt={displayVault.pool.token1.symbol}
+                          className="w-4 h-4 rounded-full"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {displayVault.pool.token1.symbol}
+                        </span>
+                      </div>
+                      <div className="font-mono text-sm text-white">
+                        {displayVault.pool.price1?.toFixed(4) || "0.0000"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        vs {displayVault.pool.token0.symbol}
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Fees Earned section removed - data not available in current backend response */}
               </div>
             </Card>
           </div>

@@ -94,35 +94,39 @@ const ProblemSolutionSection = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {category.items.map((item, itemIndex) => (
-                    <div
-                      key={itemIndex}
-                      className="border-l-2 border-primary/30 pl-4 animate-slide-up"
-                      style={{
-                        animationDelay: `${
-                          categoryIndex * 0.2 + itemIndex * 0.1
-                        }s`,
-                      }}
-                    >
-                      <div className="mb-2">
-                        <span className="text-sm font-mono text-muted-foreground">
-                          Problem:
-                        </span>
-                        <p className="text-sm font-mono text-red-400 mt-1">
-                          {item.problem}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-mono text-muted-foreground">
-                          Solution:
-                        </span>
-                        <p className="text-sm font-mono text-white mt-1">
-                          {item.solution}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-primary/30">
+                        <th className="text-left py-3 px-4 font-mono text-sm text-muted-foreground">
+                          Problem
+                        </th>
+                        <th className="text-left py-3 px-4 font-mono text-sm text-muted-foreground">
+                          Solution
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {category.items.map((item, itemIndex) => (
+                        <tr
+                          key={itemIndex}
+                          className="border-b border-primary/20 hover:bg-primary/5 transition-colors animate-slide-up"
+                          style={{
+                            animationDelay: `${
+                              categoryIndex * 0.2 + itemIndex * 0.1
+                            }s`,
+                          }}
+                        >
+                          <td className="py-3 px-4 text-sm font-mono text-red-400 align-top">
+                            {item.problem}
+                          </td>
+                          <td className="py-3 px-4 text-sm font-mono text-white align-top">
+                            {item.solution}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
