@@ -13,6 +13,17 @@ import {
   checkMetaMaskInstallation,
 } from "../../../utils/metamaskHelpers";
 
+// Helper function to detect user cancellation
+const isUserCancellation = (error: any): boolean => {
+  return (
+    error?.code === 4001 ||
+    error?.code === "ACTION_REJECTED" ||
+    error?.message?.toLowerCase().includes("user denied") ||
+    error?.message?.toLowerCase().includes("user rejected") ||
+    error?.message?.toLowerCase().includes("transaction cancelled")
+  );
+};
+
 const currentNetworkConfig = appConfig.networks[env.HEDERA_NETWORK];
 
 export const switchToHederaNetwork = async (ethereum: any) => {
@@ -342,6 +353,14 @@ class MetaMaskWallet implements WalletInterface {
         console.log("ERC20 approve completed successfully");
         return txResult.hash;
       } catch (erc20Error: any) {
+        // Check if user cancelled the transaction - if so, don't try fallback
+        if (isUserCancellation(erc20Error)) {
+          console.log(
+            "User cancelled ERC20 approval - not attempting HTS fallback"
+          );
+          throw erc20Error; // Re-throw the cancellation error without trying fallback
+        }
+
         console.log(
           "ERC20 approve failed, trying HTS precompile...",
           erc20Error.message

@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  DollarSign,
   TrendingUp,
   Wallet,
   CheckCircle,
@@ -16,18 +15,6 @@ import { useWalletInterface } from "../services/wallets/useWalletInterface";
 import { toast } from "../hooks/useToastify";
 import { VaultData } from "../types/api";
 import { useVaults } from "../hooks/useVaults";
-
-// Mock TVL data for chart
-const tvlData = [
-  { date: "Jan 1", tvl: 850000, timestamp: "2025-01-01" },
-  { date: "Jan 7", tvl: 920000, timestamp: "2025-01-07" },
-  { date: "Jan 14", tvl: 1100000, timestamp: "2025-01-14" },
-  { date: "Jan 21", tvl: 1350000, timestamp: "2025-01-21" },
-  { date: "Jan 28", tvl: 1580000, timestamp: "2025-01-28" },
-  { date: "Feb 4", tvl: 1750000, timestamp: "2025-02-04" },
-  { date: "Feb 11", tvl: 1920000, timestamp: "2025-02-11" },
-  { date: "Feb 18", tvl: 2100000, timestamp: "2025-02-18" },
-];
 
 interface DepositPageProps {
   vault?: VaultData;
@@ -56,7 +43,6 @@ const DepositPage = ({ vault }: DepositPageProps) => {
       : null) ||
     (vaults && vaults.length === 1 ? vaults[0] : null); // Use first vault if only one available
 
-  // Always call hooks at the top level - use fallback data if needed
   const { depositToVault, loading, transactionStage, isConnected } =
     useVaultDeposit(currentVault || undefined);
   const { accountId } = useWalletInterface();
@@ -86,7 +72,6 @@ const DepositPage = ({ vault }: DepositPageProps) => {
   console.log("currentVault found:", currentVault);
   console.log("vaultsLoading:", vaultsLoading);
 
-  // If we're loading or no vault data is available, show loading state
   if (vaultsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -121,82 +106,34 @@ const DepositPage = ({ vault }: DepositPageProps) => {
     );
   }
 
-  // Use the backend vault data - no fallback to hardcoded SAUCE data
+  // the backend vault data
   const displayVault = currentVault!;
-
-  // Debug logging for vault data
-  console.log("=== DISPLAY VAULT DEBUG ===");
-  console.log("displayVault:", displayVault);
-  console.log("displayVault.tvl:", displayVault.tvl);
-  console.log("displayVault.totalSupply:", displayVault.totalSupply);
-  console.log("typeof displayVault.tvl:", typeof displayVault.tvl);
-  if (typeof displayVault.tvl === "object") {
-    console.log("displayVault.tvl.tvl0:", displayVault.tvl.tvl0);
-    console.log("displayVault.tvl.tvl1:", displayVault.tvl.tvl1);
-  }
-  console.log("Using fallback?", !currentVault);
-  if (displayVault.pool) {
-    console.log(
-      "Token0:",
-      displayVault.pool.token0.symbol,
-      displayVault.pool.token0.address
-    );
-    console.log(
-      "Token1:",
-      displayVault.pool.token1.symbol,
-      displayVault.pool.token1.address
-    );
-    console.log("=== NEED TO ADD THESE TO TOKEN MAPPING ===");
-    console.log(
-      `"${displayVault.pool.token0.address.toLowerCase()}": "NEED_TOKEN_ID_FOR_${
-        displayVault.pool.token0.symbol
-      }",`
-    );
-    console.log(
-      `"${displayVault.pool.token1.address.toLowerCase()}": "NEED_TOKEN_ID_FOR_${
-        displayVault.pool.token1.symbol
-      }",`
-    );
-  }
-
-  // Helper function to format currency from TVL data
-  const formatCurrencyValue = (
-    tvl: string | { tvl0: number; tvl1: number }
-  ): string => {
-    if (
-      typeof tvl === "object" &&
-      tvl.tvl0 !== undefined &&
-      tvl.tvl1 !== undefined
-    ) {
-      // Just show a placeholder since we can't calculate USD value from relative prices
-      return "See token breakdown below";
-    }
-
-    // Handle string format like "$2.1M"
-    if (typeof tvl === "string") {
-      const match = tvl.match(/\$?([\d.]+)([KMB]?)/);
-      if (match) {
-        const [, value, unit] = match;
-        const numValue = parseFloat(value);
-        switch (unit) {
-          case "K":
-            return `$${(numValue * 1000).toLocaleString()}`;
-          case "M":
-            return `$${(numValue * 1000000).toLocaleString()}`;
-          case "B":
-            return `$${(numValue * 1000000000).toLocaleString()}`;
-          default:
-            return `$${numValue.toLocaleString()}`;
-        }
-      }
-      return tvl;
-    }
-
-    return "$0.00";
-  };
 
   const handleBack = () => {
     navigate("/app");
+  };
+
+  // Handle tab switching with input clearing
+  const handleTokenTypeChange = (newType: "token0" | "token1" | "both") => {
+    const previousType = selectedToken;
+    setSelectedToken(newType);
+
+    // Clear inputs based on tab change logic
+    if (newType === "token0" && previousType !== "token0") {
+      // Switching to token0 only - clear token1 input
+      console.log(
+        `Clearing token1 input (switching to ${displayVault?.pool?.token0?.symbol} only)`
+      );
+      setDeposit1Amount("");
+    } else if (newType === "token1" && previousType !== "token1") {
+      // Switching to token1 only - clear token0 input
+      console.log(
+        `Clearing token0 input (switching to ${displayVault?.pool?.token1?.symbol} only)`
+      );
+      setDeposit0Amount("");
+    } else {
+      console.log("No input clearing needed");
+    }
   };
 
   const handleDeposit = async () => {
@@ -205,13 +142,41 @@ const DepositPage = ({ vault }: DepositPageProps) => {
       return;
     }
 
-    if (!deposit0Amount && !deposit1Amount) {
+    // Check if any amount is entered based on selected tab
+    const hasValidAmount =
+      (selectedToken === "token0" && deposit0Amount) ||
+      (selectedToken === "token1" && deposit1Amount) ||
+      (selectedToken === "both" && (deposit0Amount || deposit1Amount));
+
+    if (!hasValidAmount) {
       toast.error("Please enter at least one deposit amount");
       return;
     }
 
     try {
-      const result = await depositToVault(deposit0Amount, deposit1Amount);
+      // Only send amounts that correspond to the selected tab
+      const actualDeposit0Amount =
+        selectedToken === "token0" || selectedToken === "both"
+          ? deposit0Amount
+          : "";
+      const actualDeposit1Amount =
+        selectedToken === "token1" || selectedToken === "both"
+          ? deposit1Amount
+          : "";
+
+      console.log(`=== DEPOSIT AMOUNTS DEBUG ===`);
+      console.log(`Selected tab: ${selectedToken}`);
+      console.log(
+        `Raw inputs - deposit0Amount: "${deposit0Amount}", deposit1Amount: "${deposit1Amount}"`
+      );
+      console.log(
+        `Actual amounts being sent - actualDeposit0Amount: "${actualDeposit0Amount}", actualDeposit1Amount: "${actualDeposit1Amount}"`
+      );
+
+      const result = await depositToVault(
+        actualDeposit0Amount,
+        actualDeposit1Amount
+      );
       if (result) {
         console.log("Deposit successful:", result);
         // Reset form on success
@@ -340,7 +305,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   <div className="bg-card/20 rounded-lg p-1 border border-border">
                     <div className="grid grid-cols-3 gap-1">
                       <button
-                        onClick={() => setSelectedToken("token0")}
+                        onClick={() => handleTokenTypeChange("token0")}
                         className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
                           selectedToken === "token0"
                             ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
@@ -350,7 +315,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                         {displayVault.pool.token0.symbol}
                       </button>
                       <button
-                        onClick={() => setSelectedToken("token1")}
+                        onClick={() => handleTokenTypeChange("token1")}
                         className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
                           selectedToken === "token1"
                             ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
@@ -360,7 +325,7 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                         {displayVault.pool.token1.symbol}
                       </button>
                       <button
-                        onClick={() => setSelectedToken("both")}
+                        onClick={() => handleTokenTypeChange("both")}
                         className={`relative px-3 py-2 text-xs font-mono rounded-md transition-all duration-200 border ${
                           selectedToken === "both"
                             ? "bg-primary text-primary-foreground shadow-sm border-primary/50"
@@ -414,7 +379,12 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                   disabled={
                     !isConnected ||
                     loading ||
-                    (!deposit0Amount && !deposit1Amount)
+                    !(
+                      (selectedToken === "token0" && deposit0Amount) ||
+                      (selectedToken === "token1" && deposit1Amount) ||
+                      (selectedToken === "both" &&
+                        (deposit0Amount || deposit1Amount))
+                    )
                   }
                   className="w-full font-mono"
                   size="lg"
@@ -612,25 +582,35 @@ const DepositPage = ({ vault }: DepositPageProps) => {
                         }}
                       />
                       <div
-                        className="absolute w-1 h-4 bg-green-400 rounded-full -top-1"
+                        className={`absolute w-1 h-4 rounded-full -top-1 ${
+                          displayVault.pool.currentTick >=
+                            displayVault.lowerTick &&
+                          displayVault.pool.currentTick <=
+                            displayVault.upperTick
+                            ? "bg-green-400"
+                            : "bg-red-400"
+                        }`}
                         style={{
-                          left:
-                            displayVault.pool.currentTick >=
-                              displayVault.lowerTick &&
-                            displayVault.pool.currentTick <=
-                              displayVault.upperTick
-                              ? `${
-                                  20 +
-                                  ((displayVault.pool.currentTick -
-                                    displayVault.lowerTick) /
-                                    (displayVault.upperTick -
-                                      displayVault.lowerTick)) *
-                                    60
-                                }%`
-                              : displayVault.pool.currentTick <
-                                displayVault.lowerTick
-                              ? "15%"
-                              : "85%",
+                          left: (() => {
+                            const currentTick = displayVault.pool.currentTick;
+                            const lowerTick = displayVault.lowerTick;
+                            const upperTick = displayVault.upperTick;
+
+                            // If current tick is below lower bound
+                            if (currentTick < lowerTick) {
+                              return "10%";
+                            }
+                            // If current tick is above upper bound
+                            if (currentTick > upperTick) {
+                              return "90%";
+                            }
+                            // If current tick is within range
+                            const rangeWidth = upperTick - lowerTick;
+                            const positionInRange = currentTick - lowerTick;
+                            const percentage =
+                              (positionInRange / rangeWidth) * 60 + 20;
+                            return `${percentage}%`;
+                          })(),
                         }}
                       />
                     </div>

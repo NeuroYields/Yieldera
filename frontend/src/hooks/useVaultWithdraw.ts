@@ -306,7 +306,7 @@ export const useVaultWithdraw = (vaultData?: VaultData) => {
               vaultContractId,
               "withdraw",
               functionParameters,
-              600000
+              15_000_000
             );
 
             if (!txResult) {

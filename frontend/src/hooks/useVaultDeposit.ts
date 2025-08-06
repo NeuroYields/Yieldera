@@ -87,6 +87,44 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
         const token0Decimals = token0Data.decimals;
         const token1Decimals = token1Data.decimals;
 
+        // Debug logging for token approval requirements
+        console.log("=== TOKEN APPROVAL DEBUG ===");
+        console.log("Deposit amounts requested:");
+        console.log(
+          `  deposit0Amount: "${deposit0Amount}" -> parsed: ${deposit0}`
+        );
+        console.log(
+          `  deposit1Amount: "${deposit1Amount}" -> parsed: ${deposit1}`
+        );
+        console.log("Token0 Data:", {
+          symbol: token0Symbol,
+          isNativeWrapper: token0Data.isNativeWrapper,
+          address: token0Data.address,
+          deposit0Amount: deposit0,
+          needsApproval: deposit0 > 0 && !token0Data.isNativeWrapper,
+        });
+        console.log("Token1 Data:", {
+          symbol: token1Symbol,
+          isNativeWrapper: token1Data.isNativeWrapper,
+          address: token1Data.address,
+          deposit1Amount: deposit1,
+          needsApproval: deposit1 > 0 && !token1Data.isNativeWrapper,
+        });
+
+        // Count expected approvals
+        const expectedApprovals = [
+          deposit0 > 0 && !token0Data.isNativeWrapper
+            ? `${token0Symbol} approval`
+            : null,
+          deposit1 > 0 && !token1Data.isNativeWrapper
+            ? `${token1Symbol} approval`
+            : null,
+        ].filter(Boolean);
+        console.log("Expected approvals:", expectedApprovals);
+        console.log(
+          `Total expected approval popups: ${expectedApprovals.length}`
+        );
+
         const getTokenIdFromAddress = async (
           tokenData: any,
           symbol: string
@@ -210,137 +248,170 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
         const token0Id = await getTokenIdFromAddress(token0Data, token0Symbol);
         const token1Id = await getTokenIdFromAddress(token1Data, token1Symbol);
 
-        // Token0 approval if needed (for non-native token)
-        if (deposit0 > 0 && !token0Data.isNativeWrapper) {
-          setTransactionStage("approving");
-          const token0AmountRaw = Math.floor(
-            deposit0 * Math.pow(10, token0Decimals)
-          );
+        // Execute approval and deposit steps - if any step is cancelled, stop everything
+        try {
+          // Token0 approval if needed (for non-native token)
+          if (deposit0 > 0 && !token0Data.isNativeWrapper) {
+            console.log(
+              `🔄 APPROVAL ATTEMPT: ${token0Symbol} - Amount: ${deposit0}, Raw: ${Math.floor(
+                deposit0 * Math.pow(10, token0Decimals)
+              )}, TokenID: ${token0Id}`
+            );
+            setTransactionStage("approving");
+            const token0AmountRaw = Math.floor(
+              deposit0 * Math.pow(10, token0Decimals)
+            );
 
-          await toast.promise(
-            (async () => {
-              try {
-                const approvalTxHash = await metamaskWallet.approveToken(
-                  ContractId.fromString(token0Id),
-                  vaultContractAddress,
-                  token0AmountRaw
-                );
-
-                if (!approvalTxHash) {
-                  throw new Error(
-                    `${token0Symbol} approval transaction failed`
+            await toast.promise(
+              (async () => {
+                try {
+                  const approvalTxHash = await metamaskWallet.approveToken(
+                    ContractId.fromString(token0Id),
+                    vaultContractAddress,
+                    token0AmountRaw
                   );
-                }
 
-                // Wait for transaction confirmation
-                const provider = new ethers.providers.Web3Provider(
-                  (window as any).ethereum
-                );
-                const receipt = await provider.waitForTransaction(
-                  approvalTxHash
-                );
+                  if (!approvalTxHash) {
+                    throw new Error(
+                      `${token0Symbol} approval transaction failed`
+                    );
+                  }
 
-                if (receipt.status !== 1) {
-                  throw new Error(
-                    `${token0Symbol} approval failed with status: ${receipt.status}`
+                  // Wait for transaction confirmation
+                  const provider = new ethers.providers.Web3Provider(
+                    (window as any).ethereum
                   );
+                  const receipt = await provider.waitForTransaction(
+                    approvalTxHash
+                  );
+
+                  if (receipt.status !== 1) {
+                    throw new Error(
+                      `${token0Symbol} approval failed with status: ${receipt.status}`
+                    );
+                  }
+
+                  return receipt;
+                } catch (metamaskError: any) {
+                  // Check if user cancelled the transaction
+                  if (isUserCancellation(metamaskError)) {
+                    throw new Error("Transaction cancelled by user");
+                  }
+
+                  console.log(
+                    `MetaMask ${token0Symbol} approval failed, trying HTS:`,
+                    metamaskError.message
+                  );
+
+                  // Fallback to HTS precompile approval
+                  const approvalResult = await walletInterface.approveToken(
+                    ContractId.fromString(token0Id),
+                    vaultContractAddress,
+                    token0AmountRaw
+                  );
+                  return approvalResult;
                 }
-
-                return receipt;
-              } catch (metamaskError: any) {
-                // Check if user cancelled the transaction
-                if (isUserCancellation(metamaskError)) {
-                  throw new Error("Transaction cancelled by user");
-                }
-
-                console.log(
-                  `MetaMask ${token0Symbol} approval failed, trying HTS:`,
-                  metamaskError.message
-                );
-
-                // Fallback to HTS precompile approval
-                const approvalResult = await walletInterface.approveToken(
-                  ContractId.fromString(token0Id),
-                  vaultContractAddress,
-                  token0AmountRaw
-                );
-                return approvalResult;
+              })(),
+              {
+                loadingMessage: `Approving ${deposit0} ${token0Symbol} tokens...`,
+                successMessage: `${token0Symbol} tokens approved successfully!`,
+                errorMessage: `Failed to approve ${token0Symbol} tokens`,
               }
-            })(),
-            {
-              loadingMessage: `Approving ${deposit0} ${token0Symbol} tokens...`,
-              successMessage: `${token0Symbol} tokens approved successfully!`,
-              errorMessage: `Failed to approve ${token0Symbol} tokens`,
-            }
-          );
+            );
+          } else if (deposit0 > 0) {
+            console.log(
+              `⏭️ SKIPPING APPROVAL: ${token0Symbol} is native wrapper (no approval needed)`
+            );
+          }
+
+          // Token1 approval if needed (for non-native token)
+          if (deposit1 > 0 && !token1Data.isNativeWrapper) {
+            console.log(
+              `🔄 APPROVAL ATTEMPT: ${token1Symbol} - Amount: ${deposit1}, Raw: ${Math.floor(
+                deposit1 * Math.pow(10, token1Decimals)
+              )}, TokenID: ${token1Id}`
+            );
+            setTransactionStage("approving");
+            const token1AmountRaw = Math.floor(
+              deposit1 * Math.pow(10, token1Decimals)
+            );
+
+            await toast.promise(
+              (async () => {
+                try {
+                  const approvalTxHash = await metamaskWallet.approveToken(
+                    ContractId.fromString(token1Id),
+                    vaultContractAddress,
+                    token1AmountRaw
+                  );
+
+                  if (!approvalTxHash) {
+                    throw new Error(
+                      `${token1Symbol} approval transaction failed`
+                    );
+                  }
+
+                  // Wait for transaction confirmation
+                  const provider = new ethers.providers.Web3Provider(
+                    (window as any).ethereum
+                  );
+                  const receipt = await provider.waitForTransaction(
+                    approvalTxHash
+                  );
+
+                  if (receipt.status !== 1) {
+                    throw new Error(
+                      `${token1Symbol} approval failed with status: ${receipt.status}`
+                    );
+                  }
+
+                  return receipt;
+                } catch (metamaskError: any) {
+                  // Check if user cancelled the transaction
+                  if (isUserCancellation(metamaskError)) {
+                    throw new Error("Transaction cancelled by user");
+                  }
+
+                  console.log(
+                    `MetaMask ${token1Symbol} approval failed, trying HTS:`,
+                    metamaskError.message
+                  );
+
+                  // Fallback to HTS precompile approval
+                  const approvalResult = await walletInterface.approveToken(
+                    ContractId.fromString(token1Id),
+                    vaultContractAddress,
+                    token1AmountRaw
+                  );
+                  return approvalResult;
+                }
+              })(),
+              {
+                loadingMessage: `Approving ${deposit1} ${token1Symbol} tokens...`,
+                successMessage: `${token1Symbol} tokens approved successfully!`,
+                errorMessage: `Failed to approve ${token1Symbol} tokens`,
+              }
+            );
+          } else if (deposit1 > 0) {
+            console.log(
+              `⏭️ SKIPPING APPROVAL: ${token1Symbol} is native wrapper (no approval needed)`
+            );
+          }
+        } catch (approvalError: any) {
+          // If any approval step was cancelled by user, stop the entire process
+          if (
+            isUserCancellation(approvalError) ||
+            approvalError.message === "Transaction cancelled by user"
+          ) {
+            console.log("Approval cancelled by user, stopping deposit process");
+            setTransactionStage("idle"); // Reset stage immediately
+            throw approvalError; // This will be caught by the outer catch block
+          }
+          // Re-throw other approval errors
+          throw approvalError;
         }
 
-        // Token1 approval if needed (for non-native token)
-        if (deposit1 > 0 && !token1Data.isNativeWrapper) {
-          setTransactionStage("approving");
-          const token1AmountRaw = Math.floor(
-            deposit1 * Math.pow(10, token1Decimals)
-          );
-
-          await toast.promise(
-            (async () => {
-              try {
-                const approvalTxHash = await metamaskWallet.approveToken(
-                  ContractId.fromString(token1Id),
-                  vaultContractAddress,
-                  token1AmountRaw
-                );
-
-                if (!approvalTxHash) {
-                  throw new Error(
-                    `${token1Symbol} approval transaction failed`
-                  );
-                }
-
-                // Wait for transaction confirmation
-                const provider = new ethers.providers.Web3Provider(
-                  (window as any).ethereum
-                );
-                const receipt = await provider.waitForTransaction(
-                  approvalTxHash
-                );
-
-                if (receipt.status !== 1) {
-                  throw new Error(
-                    `${token1Symbol} approval failed with status: ${receipt.status}`
-                  );
-                }
-
-                return receipt;
-              } catch (metamaskError: any) {
-                // Check if user cancelled the transaction
-                if (isUserCancellation(metamaskError)) {
-                  throw new Error("Transaction cancelled by user");
-                }
-
-                console.log(
-                  `MetaMask ${token1Symbol} approval failed, trying HTS:`,
-                  metamaskError.message
-                );
-
-                // Fallback to HTS precompile approval
-                const approvalResult = await walletInterface.approveToken(
-                  ContractId.fromString(token1Id),
-                  vaultContractAddress,
-                  token1AmountRaw
-                );
-                return approvalResult;
-              }
-            })(),
-            {
-              loadingMessage: `Approving ${deposit1} ${token1Symbol} tokens...`,
-              successMessage: `${token1Symbol} tokens approved successfully!`,
-              errorMessage: `Failed to approve ${token1Symbol} tokens`,
-            }
-          );
-        }
-
-        // Execute deposit transaction
+        // Execute deposit transaction - only if all approvals succeeded
         setTransactionStage("depositing");
         const depositPromise = (async () => {
           try {
@@ -383,7 +454,7 @@ export const useVaultDeposit = (vaultData?: VaultData) => {
               vaultContractId,
               "deposit",
               functionParameters,
-              800000,
+              15_000_000,
               hbarAmount
             );
 
