@@ -5,6 +5,7 @@ use mcp_core::{
     types::{ServerCapabilities, ToolCapabilities},
 };
 
+mod config;
 mod tools;
 
 use color_eyre::eyre::Result;
@@ -28,7 +29,7 @@ async fn main() -> Result<()> {
 async fn start() -> Result<()> {
     // Start calculator server
 
-    use crate::tools::balance::GetHbarBalanceTool;
+    use crate::tools::{balance::GetHbarBalanceTool, bonzo::SupplyBonzoTokenTool};
     let mcp_server_protocol = Server::builder(
         "hedera_mcp".to_string(),
         "1.0".to_string(),
@@ -43,6 +44,7 @@ async fn start() -> Result<()> {
     .register_tool(AddTool::tool(), AddTool::call())
     .register_tool(SubTool::tool(), SubTool::call())
     .register_tool(GetHbarBalanceTool::tool(), GetHbarBalanceTool::call())
+    .register_tool(SupplyBonzoTokenTool::tool(), SupplyBonzoTokenTool::call())
     .build();
 
     let mcp_server_transport =
@@ -101,17 +103,26 @@ async fn start() -> Result<()> {
 
     let agent = agent_builder.build();
 
-    let add_response = agent.prompt("Add 10 + 10").await?;
+    // let add_response = agent.prompt("Add 10 + 10").await?;
 
-    println!("Add Response: {:?}", add_response);
+    // println!("Add Response: {:?}", add_response);
 
-    let sub_response = agent.prompt("Subtract 10 - 5").await?;
-    println!("Sub Response: {:?}", sub_response);
+    // let sub_response = agent.prompt("Subtract 10 - 5").await?;
+    // println!("Sub Response: {:?}", sub_response);
 
-    let hbar_balance_response = agent
-        .prompt("Get native coin balance (HBAR) of 0x79dAa774769334aF120f6CAA57E828FBBF56b39a")
+    // let hbar_balance_response = agent
+    //     .prompt("Get native coin balance (HBAR) of 0x79dAa774769334aF120f6CAA57E828FBBF56b39a")
+    //     .await?;
+    // println!("Hbar Balance Response: {:?}", hbar_balance_response);
+
+    let supply_bonzo_token_response = agent
+        .prompt("I want to Supply 0.1 of HBAR token to bonzo.")
         .await?;
-    println!("Hbar Balance Response: {:?}", hbar_balance_response);
+
+    println!(
+        "Supply Bonzo Token Response: {:?}",
+        supply_bonzo_token_response
+    );
 
     Ok(())
 }
