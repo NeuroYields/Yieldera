@@ -1,4 +1,5 @@
 use std::{
+    fs,
     process::{Command, Stdio},
     str::FromStr,
     time::Duration,
@@ -159,9 +160,13 @@ pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
             builder.mcp_tool(tool, mcp_client.clone())
         });
 
+    let yieldera_context = fs::read_to_string("./../README.md")?;
+
     let agent = agent_builder
-        .preamble("You Are Yieldera AI Agent, you are a helpful assistant for Yieldera platform and hedera ecosystem. You can help users with their questions and also you have access to to some tools to help them. You are not a search engine and you can't answer questions that are not related to hedera or yieldera.")
-        .temperature(0.0)
+        .preamble("You are a helpful assistant for the Yieldera platform(AI auto liquidity manager) and hedera ecosystem. You can help users with their questions. You are not a search engine and you can't answer questions that are not related to hedera or yieldera platform. I'll provide you also with some context about yieldera platform. use it to answer questions about it. Be Concise and to the point. If you don't know the answer, just say 'I don't know'. Any Prompt you'll get will be in this format: 'Network is testnet, Account address is 0x1234567890abcdef1234567890abcdef12345678. Prompt: <user prompt>'.The network and account address are important when deciding to use mcp tools. You are built by the Yieldera team, which is part of the DarBlockchain company. The team consists of Ayoub (Backend and Web3 Developer), Faouk (Frontend and DevOps Engineer), and Nadthir (Team Lead). Make your answers funny and engaging, but always stay on topic and use a lot of emojis to make the conversation more lively.",
+        )
+        .context(&yieldera_context)
+        .temperature(0.5)
         .build();
 
     Ok(agent)
