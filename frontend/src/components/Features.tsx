@@ -40,7 +40,7 @@ const Features = () => {
       icon: Vault,
       title: "SMART VAULT SYSTEM",
       description:
-        "Automated LP process with position rebalancing, auto-compounding fees, and single-sided deposits. Receive fungible yHBAR tokens as vault receipts for additional DeFi opportunities.",
+        "Automated LP process with position rebalancing, auto-compounding fees, and single-sided deposits. Receive fungible YVHBAR tokens as vault receipts for additional DeFi opportunities.",
       color: "text-secondary",
     },
     {
@@ -99,7 +99,7 @@ const Features = () => {
         </div>
 
         {/* Performance Metrics */}
-        <div className="mt-20 text-center">
+        {/* <div className="mt-20 text-center">
           <h3 className="font-terminal text-2xl text-glow-blue mb-8">
             PERFORMANCE METRICS
           </h3>
@@ -135,7 +135,7 @@ const Features = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </section>
   );
