@@ -17,6 +17,6 @@ dotenvy = "0.15.7"
 
 
 [features]
-default = ["client"]
+default = ["server"]
 client = []
 server = []

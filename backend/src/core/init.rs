@@ -105,7 +105,7 @@ pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
     // Wait for the server to become ready
     let client = Client::new();
     let mut retries = 0;
-    let max_retries = 10;
+    let max_retries = 30;
 
     while retries < max_retries {
         let res = client.get("http://127.0.0.1:3001/sse").send().await;
@@ -117,7 +117,7 @@ pub async fn init_ai_agent() -> Result<Agent<CompletionModel>> {
         }
 
         retries += 1;
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_secs(1)).await;
     }
 
     if retries == max_retries {
